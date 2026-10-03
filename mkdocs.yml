@@ -1,0 +1,91 @@
+site_name: herdr-nono-plugin
+site_description: Run coding agents from Herdr inside nono sandboxes.
+# `just docs` overrides this so the local preview is served at the root.
+site_url: !ENV [DOCS_SITE_URL, "https://schemaitat.github.io/herdr-nono-plugin/"]
+repo_url: https://github.com/schemaitat/herdr-nono-plugin
+repo_name: schemaitat/herdr-nono-plugin
+edit_uri: ""
+
+# The pages are the repo's own Markdown: README.md becomes the home page and
+# CHANGELOG.md the changelog (added by the hook), docs/ the rest, organised
+# by Diátaxis (https://diataxis.fr): tutorials, how-to guides, reference,
+# explanation.
+docs_dir: docs
+hooks:
+  - .github/mkdocs/hooks.py
+
+nav:
+  - Home: index.md
+  - Tutorial:
+      - Your first sandboxed agent: tutorials/first-sandboxed-agent.md
+  - How-to guides:
+      - Install: how-to/install.md
+      - Add the key bindings: how-to/key-bindings.md
+      - Manage running agents: how-to/manage-agents.md
+      - Change what the sandbox may touch: how-to/grant-access.md
+      - Run another agent: how-to/custom-agent.md
+      - Drive the plugin from scripts: how-to/script-actions.md
+      - Troubleshoot: how-to/troubleshoot.md
+      - Test on a real host: how-to/test-on-a-real-host.md
+      - Work on the plugin: how-to/develop.md
+  - Reference:
+      - Actions: reference/actions.md
+      - Overlay: reference/overlay.md
+      - Configuration: reference/configuration.md
+      - Result line: reference/result-line.md
+      - Profiles: reference/profiles.md
+      - Verification: reference/verification.md
+      - State: reference/state.md
+      - Source layout: reference/source-layout.md
+      - Changelog: changelog.md
+  - Explanation:
+      - Design: explanation/design.md
+      - What the sandbox stops: explanation/security.md
+
+# Fail the strict build on pages missing from nav and on broken links.
+validation:
+  omitted_files: warn
+  absolute_links: warn
+  unrecognized_links: warn
+  anchors: warn
+
+theme:
+  name: material
+  features:
+    - content.code.copy
+    - navigation.indexes
+    - navigation.sections
+    - navigation.tabs
+    - navigation.top
+    - search.highlight
+    - toc.follow
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: teal
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: teal
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.highlight
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.inlinehilite
+
+plugins:
+  - search

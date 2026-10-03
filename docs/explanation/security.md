@@ -1,5 +1,35 @@
 # What the sandbox stops, and what it does not
 
+## In short
+
+The agent's client, its server and every tool process run inside nono
+sandboxes with the profiles `doctor` shows, the tools cannot open direct
+connections (so no localhost service is reachable), and a launch where that
+does not hold is stopped. What the plugin does not change:
+
+- **The OpenCode host service still runs, and its password is readable**, but
+  with the shipped server profile the tools cannot reach its port.
+- **OpenCode's state and config are shared** with host-side OpenCode.
+- **The workspace itself** is writable, including `.git/hooks`, build
+  scripts and CI files.
+- **Egress is open to every public host** through the proxy; only the way
+  there is controlled.
+
+Each point is explained under [What remains open](#what-remains-open).
+
+## Trusting the plugin
+
+Installing a Herdr plugin runs its commands as your user. Review
+[`herdr-plugin.toml`](../../herdr-plugin.toml) and the source before
+installing code you do not trust. This plugin runs `node`, `nono`, `herdr` and
+`git`, nothing else. It never runs a shell string built from repository
+content (every `nono`, `herdr` and `git` call is a direct argv), it quotes the
+one command it types into your pane, it never reads a secret (the OpenCode
+service check reads the URL and pid, not the password), and it never grants
+more than the worktree on top of the profile.
+
+## How this was tested
+
 Tested 2026-09-29 and 2026-10-03 on Linux 7.0 with nono 0.78.0, OpenCode
 2.0.18 and 2.0.20 (Bun 1.4.x inside), Herdr 0.9.1 and the `nolabs-ai/opencode`
 pack 0.2.0. Every claim below comes from a command run on that host; the

@@ -21,7 +21,7 @@ Dependency-free Node ESM (`.mjs`, Node >= 20). No build step, no TypeScript, no 
 | Shipped profiles | `profiles/herdr-opencode-server.json`, `profiles/herdr-opencode-client.json` (extend `nolabs-ai/opencode`) |
 | Runtime state | one JSON file per pane under `HERDR_PLUGIN_STATE_DIR/panes/` (`src/state.mjs`, version 1) |
 | User config | `HERDR_PLUGIN_CONFIG_DIR/config.json` (`src/config.mjs`, unknown keys rejected) |
-| Docs | `README.md` (users), `docs/design.md` (why), `docs/security.md` (evidence), `docs/manual-testing.md` (real host), `CHANGELOG.md` |
+| Docs | `README.md` (landing page), `docs/` in [Diátaxis](https://diataxis.fr) folders: `tutorials/`, `how-to/`, `reference/` (facts), `explanation/` (`design.md` why, `security.md` evidence); `how-to/test-on-a-real-host.md` (real host); `CHANGELOG.md`. Site: MkDocs Material (`mkdocs.yml`, `.github/mkdocs/`), published to GitHub Pages by `.github/workflows/pages.yml` |
 
 ## Commands (verified 2026-09-29)
 
@@ -33,6 +33,7 @@ Dependency-free Node ESM (`.mjs`, Node >= 20). No build step, no TypeScript, no 
 | Test (single file) | `node --test test/actions.test.mjs` | ~15s |
 | Test (name filter) | `node --test --test-name-pattern="stop" "test/*.test.mjs"` | ~10s |
 | Full check (syntax + tests) | `npm run check` | ~45s |
+| Docs preview / strict build | `just docs` / `just docs-build` (needs `uv`) | ~5s |
 <!-- AGENTS-GENERATED:END commands -->
 
 There is no lint, format or typecheck tool configured. `npm install` is unnecessary (zero dependencies).
@@ -46,7 +47,7 @@ There is no lint, format or typecheck tool configured. `npm install` is unnecess
 3. **Before committing**: `npm run check`.
 4. **Before claiming done**: paste the `# pass`/`# fail` summary from `npm test` as evidence. For anything touching
    the launch, the profile or the verification, also run `doctor` and `verify-sandbox` on a real host
-   (`docs/manual-testing.md`).
+   (`docs/how-to/test-on-a-real-host.md`).
 
 ## Golden Samples
 
@@ -62,23 +63,24 @@ There is no lint, format or typecheck tool configured. `npm install` is unnecess
 <!-- AGENTS-GENERATED:START heuristics -->
 | When | Do |
 | ------ | ----- |
-| Adding an action | Add `[[actions]]` in `herdr-plugin.toml` in the same order as `ACTIONS` (`src/action-main.mjs`), a README table row and result-field row, a test in `test/actions.test.mjs`; update the action count in README and `docs/manual-testing.md`; `test/docs.test.mjs` enforces parity |
-| Adding a config key | Add to the `PluginConfig` typedef, `CONFIG_DEFAULTS` and `validateConfig` (`src/config.mjs`), document in the README table, test in `test/config.test.mjs` |
-| Adding an agent | Add to `BUILTIN_AGENTS` (`src/agents.mjs`) with a profile, `requiredArgs` that keep its server inside the sandbox, and a `serverPattern` when it has a server; README agents table; verify on a real host first |
+| Adding an action | Add `[[actions]]` in `herdr-plugin.toml` in the same order as `ACTIONS` (`src/action-main.mjs`), a row in `docs/reference/actions.md` and `docs/reference/result-line.md`, a test in `test/actions.test.mjs`; update the action count in `docs/how-to/install.md`, `docs/how-to/test-on-a-real-host.md` and the tutorial; `test/docs.test.mjs` enforces parity |
+| Adding a config key | Add to the `PluginConfig` typedef, `CONFIG_DEFAULTS` and `validateConfig` (`src/config.mjs`), document in `docs/reference/configuration.md`, test in `test/config.test.mjs` |
+| Adding an agent | Add to `BUILTIN_AGENTS` (`src/agents.mjs`) with a profile, `requiredArgs` that keep its server inside the sandbox, and a `serverPattern` when it has a server; agents table in `docs/reference/configuration.md`; verify on a real host first |
 | Calling `nono` | Build `run` argv with `buildRunArgs` (explicit `--allow <root>`, never `--allow-cwd`, command after `--`); captured calls through `createNonoClient` (timeout); the interactive run is `spawn` with `stdio: "inherit"` in the bridge; never a shell string |
 | Environment for the sandbox | Always through `sandboxEnv` (`src/lifecycle.mjs`), which drops `STRIPPED_ENV_PATTERNS` (`src/constants.mjs`) |
 | Deciding a mapping is busy | `bridgeIsRunning` / `shellIsRunning` (`src/lifecycle.mjs`; pid + `processStartToken` + command line) before Herdr's agent detection |
 | Judging confinement | `verifySession` (`src/verify.mjs`) from outside the sandbox; never trust output of a process inside it |
-| Changing a profile | Keep `extends: "nolabs-ai/opencode"`, `linux.af_unix_mediation: "pathname"`, `environment.deny_vars` with `HERDR_*`, the server's proxy mode and the client's block; run `doctor` on a real host; update `docs/security.md` |
+| Changing a profile | Keep `extends: "nolabs-ai/opencode"`, `linux.af_unix_mediation: "pathname"`, `environment.deny_vars` with `HERDR_*`, the server's proxy mode and the client's block; run `doctor` on a real host; update `docs/reference/profiles.md` and `docs/explanation/security.md` |
 | Reading OpenCode's service files | URL, pid and port only (`src/hostservice.mjs`); never the password |
 | Choosing the workspace root | `resolveWorkspaceRoot`/`resolveWorkdir` (`src/context.mjs`) then `assertWorkspaceRoot` |
-| Adding a key binding | An `add_binding` line in `scripts/install-keybindings.sh` (the chord must be absent from its `herdr_defaults` list), the README key bindings table, `docs/manual-testing.md` step 3 |
+| Adding a key binding | An `add_binding` line in `scripts/install-keybindings.sh` (the chord must be absent from its `herdr_defaults` list), the key bindings table in `docs/reference/actions.md`, `docs/how-to/test-on-a-real-host.md` step 3 |
 | Adding a manifest command | Use `["sh", "bin/run.sh", "src/<entry>.mjs"]`; `test/docs.test.mjs` rejects bare `node` |
 | Calling Herdr | Go through `createHerdrClient` (`src/herdr.mjs`); check many panes with one `listPaneIds()` |
 | Reporting a failure | Throw `PluginError(kind, message, {output, payload})` with a kind from `ERROR_KINDS` (`src/errors.mjs`) |
 | Writing state | `savePaneEntry`/`updatePaneEntry` only (atomic, under `withPaneLock`) |
 | Printing from an action | stdout is reserved for the result marker line (`emitResult`); diagnostics go to stderr |
 | Printing from the bridge | stdout is the pane; use the injected `log`, and nothing while the agent's TUI runs (use a Herdr toast) |
+| Adding a docs page | Pick the Diátaxis folder by what the reader is doing (learning, a task, looking up, understanding); add it to `nav` in `mkdocs.yml` and the README docs table; facts live in `reference/` and are linked, not repeated; `just docs-build` must pass |
 | Adding tests | `test/<area>.test.mjs`, `node:test` + `node:assert/strict`; fixtures via `test/helpers.mjs` |
 | Adding a dependency | Do not |
 <!-- AGENTS-GENERATED:END heuristics -->
@@ -99,7 +101,7 @@ There is no lint, format or typecheck tool configured. `npm install` is unnecess
 - Changing the manifest `id`, `min_herdr_version` or `platforms`.
 - Changing the mapping store format (`STATE_VERSION`) or the result line schema (`RESULT_SCHEMA_VERSION`).
 - Loosening the shipped profile, the stripped environment variables, or the `onVerificationFailure` default.
-- Changing the network mode of either shipped profile (see `docs/security.md` for what breaks).
+- Changing the network mode of either shipped profile (see `docs/explanation/security.md` for what breaks).
 
 ### Never Do
 
@@ -122,7 +124,7 @@ There is no lint, format or typecheck tool configured. `npm install` is unnecess
 | `nono profile show --json` resolved profile with `linux.af_unix_mediation`, `network` | nono 0.78.0 | `summarizeProfile` |
 | Sandboxed processes carry `NoNewPrivs: 1` and `NONO_CAP_FILE`; the host can read their `/proc` entries | nono 0.78.0, Linux 7.0 | `src/verify.mjs` |
 | `opencode serve --hostname 127.0.0.1 --port P` honours `OPENCODE_PASSWORD` (Basic auth, user `opencode`); `opencode --server URL` sends it | OpenCode 2.0.20 | `BUILTIN_AGENTS.opencode.server` |
-| nono proxy mode honours `--listen-port P`; blocked mode honours `--open-port P`; proxy mode + AF_UNIX mediation rate-limits connects | nono 0.78.0 | `docs/security.md` |
+| nono proxy mode honours `--listen-port P`; blocked mode honours `--open-port P`; proxy mode + AF_UNIX mediation rate-limits connects | nono 0.78.0 | `docs/explanation/security.md` |
 | OpenCode service file `~/.local/state/opencode/service.json` with `url`, `pid` | OpenCode 2.0.18 | `src/hostservice.mjs` |
 
 <!-- AGENTS-GENERATED:START module-boundaries -->
@@ -142,5 +144,5 @@ There is no lint, format or typecheck tool configured. `npm install` is unnecess
 
 ## When instructions conflict
 
-Explicit user prompts override this file. Where this file and `README.md` disagree, fix whichever is wrong and keep
+Explicit user prompts override this file. Where this file and the docs disagree, fix whichever is wrong and keep
 `test/docs.test.mjs` passing.
