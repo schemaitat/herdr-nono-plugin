@@ -155,7 +155,7 @@ to nono.
 hold the host service's password, and the pack grants both directories
 read-write because OpenCode needs them. Landlock cannot deny one file below a
 granted directory; nono says so: `Landlock deny-overlap is not enforceable on
-Linux ... deny '/home/dev/.local/state/opencode/service.json' overlaps
+Linux ... deny '~/.local/state/opencode/service.json' overlaps
 allowed parent`. With the shipped server profile the password is useless,
 because the port is unreachable. With a server profile that leaves loopback
 open, the plugin detects the service (the pid in `service.json` is alive,

@@ -374,8 +374,8 @@ example while a tool runs, and lists every process:
 
 ```text
 herdr-opencode-96db19cd2fd8: confined: 4 processes, server pid 3243022
-  confined   3243039 client client /home/dev/.opencode/bin/opencode --server http://127.0.0.1:46541
-  confined   3243022 server server /home/dev/.opencode/bin/opencode serve --hostname 127.0.0.1 --port 46541
+  confined   3243039 client client ~/.opencode/bin/opencode --server http://127.0.0.1:46541
+  confined   3243022 server server ~/.opencode/bin/opencode serve --hostname 127.0.0.1 --port 46541
   confined   3243410 server tool   /usr/bin/bash -c curl ... http://127.0.0.1:4096/api/info ...
   confined   3243414 server tool   curl -s -o /dev/null -w host4096=%{http_code} --max-time 3 http://127.0.0.1:4096/api/info
 ```
