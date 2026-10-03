@@ -1,0 +1,33 @@
+{
+  "extends": "nolabs-ai/opencode",
+  "meta": {
+    "name": "herdr-opencode-client",
+    "version": "0.2.0",
+    "description": "OpenCode's TUI client in a Herdr pane (herdr-nono-plugin). Outbound network is blocked; the plugin opens exactly one localhost port per launch, the one its private server listens on. Pathname AF_UNIX mediation as for the server."
+  },
+  "workdir": {
+    "access": "readwrite"
+  },
+  "filesystem": {
+    "suppress_save_prompt": [
+      "/"
+    ]
+  },
+  "network": {
+    "block": true
+  },
+  "linux": {
+    "af_unix_mediation": "pathname"
+  },
+  "environment": {
+    "deny_vars": [
+      "HERDR_*",
+      "SSH_AUTH_SOCK",
+      "SSH_AGENT_PID",
+      "GPG_AGENT_INFO",
+      "DBUS_SESSION_BUS_ADDRESS",
+      "TMUX",
+      "TMUX_PANE"
+    ]
+  }
+}

@@ -1,0 +1,104 @@
+id = "nono.sandbox"
+name = "nono sandboxes"
+version = "0.1.0"
+min_herdr_version = "0.9.0"
+description = "Run a coding agent (OpenCode by default) in a nono sandbox, client and server together, driven from a Herdr pane."
+platforms = ["linux"]
+
+[[build]]
+command = ["sh", "scripts/write-node-path.sh"]
+
+[[actions]]
+id = "doctor"
+title = "Check nono installation and sandbox policy"
+description = "Check nono, resolve the agent's profile, and run an escape probe inside a throwaway sandbox with that profile. Starts no agent."
+contexts = ["global", "workspace", "pane"]
+command = ["sh", "bin/run.sh", "src/action.mjs"]
+
+[[actions]]
+id = "install-keybindings"
+title = "Install key bindings"
+description = "Add the plugin's key bindings to the Herdr config (start-agent, reconnect, open-shell, sandboxes) and reload it. Skips bindings that already exist."
+contexts = ["global", "workspace", "pane"]
+command = ["sh", "bin/run.sh", "src/action.mjs"]
+
+[[actions]]
+id = "start-agent"
+title = "Start configured agent in a nono sandbox"
+description = "Split a pane and launch the configured agent under nono with the current worktree granted read-write."
+contexts = ["workspace", "pane"]
+command = ["sh", "bin/run.sh", "src/action.mjs"]
+
+[[actions]]
+id = "reconnect"
+title = "Resume the agent in its sandbox"
+description = "Launch the mapped agent again in its pane, with the adapter's resume arguments (OpenCode: --continue), under the same nono policy."
+contexts = ["pane"]
+command = ["sh", "bin/run.sh", "src/action.mjs"]
+
+[[actions]]
+id = "open-shell"
+title = "Open a shell with the agent's sandbox policy"
+description = "Split a pane and open an interactive shell in a new nono sandbox with the same profile and workspace grant as the focused pane's agent."
+contexts = ["pane"]
+command = ["sh", "bin/run.sh", "src/action.mjs"]
+
+[[actions]]
+id = "stop"
+title = "Stop the sandboxed agent"
+description = "Stop the nono session of the agent tied to the focused pane (nono stop). Files and the agent's saved conversation stay."
+contexts = ["pane"]
+command = ["sh", "bin/run.sh", "src/action.mjs"]
+
+[[actions]]
+id = "info"
+title = "Show the sandbox mapping"
+description = "Print the session name, agent, profile, workspace grant, live nono sessions and last verification of the focused pane."
+contexts = ["pane"]
+command = ["sh", "bin/run.sh", "src/action.mjs"]
+
+[[actions]]
+id = "verify-sandbox"
+title = "Verify the running agent is confined"
+description = "Inspect the running session's process tree: every process confined by nono, the agent's server inside the sandbox, no connection to an unsandboxed host service."
+contexts = ["pane"]
+command = ["sh", "bin/run.sh", "src/action.mjs"]
+
+[[actions]]
+id = "prune-mappings"
+title = "Forget mappings whose pane is gone"
+description = "Drop every mapping whose Herdr pane no longer exists and whose agent and shells are not running."
+contexts = ["global", "workspace", "pane"]
+command = ["sh", "bin/run.sh", "src/action.mjs"]
+
+[[actions]]
+id = "sandboxes"
+title = "Show the sandboxes overlay"
+description = "Open a live overlay listing every sandboxed agent this plugin tracks, its pane, its nono session and its verification."
+contexts = ["global", "workspace", "pane"]
+command = ["sh", "bin/run.sh", "src/action.mjs"]
+
+[[actions]]
+id = "list-sandboxes"
+title = "List sandboxed agents"
+description = "List every pane-to-session mapping this plugin tracks with its nono session state and verification."
+contexts = ["global", "workspace", "pane"]
+command = ["sh", "bin/run.sh", "src/action.mjs"]
+
+[[actions]]
+id = "forget-mapping"
+title = "Forget this pane's mapping"
+description = "Drop the mapping of the focused pane. Refuses while its agent or a shell runs."
+contexts = ["pane"]
+command = ["sh", "bin/run.sh", "src/action.mjs"]
+
+[[events]]
+on = "worktree.removed"
+command = ["sh", "bin/run.sh", "src/events.mjs"]
+# Stops agents whose worktree was removed and forgets their mappings.
+
+[[panes]]
+id = "sandboxes"
+title = "nono sandboxes"
+placement = "overlay"
+command = ["sh", "bin/run.sh", "src/sandboxes-pane.mjs"]

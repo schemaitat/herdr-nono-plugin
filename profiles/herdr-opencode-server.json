@@ -1,0 +1,35 @@
+{
+  "extends": "nolabs-ai/opencode",
+  "meta": {
+    "name": "herdr-opencode-server",
+    "version": "0.2.0",
+    "description": "OpenCode's server in a Herdr pane (herdr-nono-plugin). The server runs the model loop and every tool. Egress goes through nono's proxy with every domain allowed, so the internet stays reachable for proxy-aware clients while direct TCP connects, including to localhost services such as the OpenCode host service on 127.0.0.1:4096, are denied. Pathname AF_UNIX mediation keeps Herdr's control socket, systemd, D-Bus and the SSH and GPG agents out of reach. The plugin grants the workspace root and the server's listen port per launch."
+  },
+  "workdir": {
+    "access": "readwrite"
+  },
+  "filesystem": {
+    "suppress_save_prompt": [
+      "/"
+    ]
+  },
+  "network": {
+    "allow_domain": [
+      "*"
+    ]
+  },
+  "linux": {
+    "af_unix_mediation": "pathname"
+  },
+  "environment": {
+    "deny_vars": [
+      "HERDR_*",
+      "SSH_AUTH_SOCK",
+      "SSH_AGENT_PID",
+      "GPG_AGENT_INFO",
+      "DBUS_SESSION_BUS_ADDRESS",
+      "TMUX",
+      "TMUX_PANE"
+    ]
+  }
+}

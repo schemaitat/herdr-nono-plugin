@@ -1,0 +1,65 @@
+#!/usr/bin/env node
+// Fake OpenCode for tests. Appends its argv, mode and the HERDR_* variable
+// names it sees to FAKE_AGENT_LOG.
+// - `serve ... --port P`: an HTTP server on 127.0.0.1:P that answers
+//   /api/info with 200 when the Basic password equals OPENCODE_PASSWORD
+//   (401 otherwise), until SIGTERM. FAKE_SERVER_FAIL=1 exits at once instead.
+// - `--server URL ...` (the client): asks URL/api/info with the password and
+//   logs the status; with FAKE_AGENT_SERVER=1 it also starts a child whose
+//   command line looks like a standalone server. It exits with FAKE_AGENT_EXIT
+//   after FAKE_AGENT_SLEEP_MS.
+const { appendFileSync } = require("node:fs");
+const { spawn } = require("node:child_process");
+const http = require("node:http");
+
+const argv = process.argv.slice(2);
+const log = (entry) => {
+  if (process.env.FAKE_AGENT_LOG) {
+    appendFileSync(process.env.FAKE_AGENT_LOG, `${JSON.stringify({ argv, cwd: process.cwd(), herdr: Object.keys(process.env).filter((key) => key.startsWith("HERDR_")).sort(), mark: process.env.FAKE_AGENT_MARK ?? null, hasPassword: Boolean(process.env.OPENCODE_PASSWORD), ...entry })}\n`);
+  }
+};
+
+if (argv[0] === "serve") {
+  log({ mode: "server" });
+  if (process.env.FAKE_SERVER_FAIL === "1") {
+    process.stderr.write("fake server: cannot start\n");
+    process.exit(1);
+  }
+  const port = Number(argv[argv.indexOf("--port") + 1]);
+  const expected = `Basic ${Buffer.from(`opencode:${process.env.OPENCODE_PASSWORD ?? ""}`).toString("base64")}`;
+  const server = http.createServer((req, res) => {
+    res.statusCode = req.headers.authorization === expected ? 200 : 401;
+    res.end("{}");
+  });
+  server.listen(port, "127.0.0.1", () => process.stdout.write(`fake server listening on ${port}\n`));
+  process.on("SIGTERM", () => {
+    log({ mode: "server-stopped" });
+    process.exit(0);
+  });
+} else {
+  const serverIndex = argv.indexOf("--server");
+  const done = (status) => {
+    log({ mode: "client", serverStatus: status });
+    const sleep = Number(process.env.FAKE_AGENT_SLEEP_MS ?? "0");
+    let child = null;
+    if (process.env.FAKE_AGENT_SERVER === "1") {
+      child = spawn(process.execPath, ["-e", `setTimeout(() => {}, ${sleep + 5000})`, "serve", "--stdio"], { stdio: "ignore" });
+    }
+    const finish = () => {
+      if (child) child.kill("SIGKILL");
+      process.exit(Number(process.env.FAKE_AGENT_EXIT ?? "0"));
+    };
+    process.on("SIGTERM", finish);
+    setTimeout(finish, sleep);
+  };
+  if (serverIndex === -1) {
+    done(null);
+  } else {
+    const url = new URL("/api/info", argv[serverIndex + 1]);
+    const req = http.get(url, { auth: `opencode:${process.env.OPENCODE_PASSWORD ?? ""}`, timeout: 2000 }, (res) => {
+      res.resume();
+      done(res.statusCode);
+    });
+    req.on("error", () => done(null));
+  }
+}
