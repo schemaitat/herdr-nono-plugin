@@ -77,32 +77,52 @@ test("the shipped profiles extend the OpenCode pack, close the host sockets and 
   assert.deepEqual(server.network, { allow_domain: ["*"] }, "the server reaches the internet through nono's proxy only, so direct localhost connects are denied");
 });
 
-test("README documents every action, config key, agent kind and error kind", () => {
+const docsDir = path.join(ROOT, "docs");
+const docPages = readdirSync(docsDir, { recursive: true }).filter((name) => name.endsWith(".md")).map((name) => name.split(path.sep).join("/")).sort();
+const doc = (page) => readFileSync(path.join(docsDir, page), "utf8");
+const allDocs = docPages.map(doc).join("\n");
+
+test("the reference documents every action, config key, agent kind and error kind", () => {
+  const actions = doc("reference/actions.md");
   for (const id of ACTION_IDS) {
-    assert.ok(readme.includes(`\`${id}\``), `README mentions action ${id}`);
+    assert.ok(actions.includes(`| \`${id}\` |`), `reference/actions.md has a row for action ${id}`);
+    assert.ok(doc("reference/result-line.md").includes(`| \`${id}\` |`), `reference/result-line.md has the fields of action ${id}`);
   }
   const words = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen"];
   const count = words[ACTION_IDS.length];
-  assert.ok(readme.includes(`# ${count} actions`), `README's install check names ${count} actions`);
-  assert.ok(readFileSync(path.join(ROOT, "docs", "manual-testing.md"), "utf8").includes(`${count} actions`), `docs/manual-testing.md names ${count} actions`);
+  for (const page of ["how-to/install.md", "how-to/test-on-a-real-host.md", "tutorials/first-sandboxed-agent.md"]) {
+    assert.ok(doc(page).includes(`${count} actions`), `${page} names ${count} actions`);
+  }
+  const configuration = doc("reference/configuration.md");
   for (const key of Object.keys(CONFIG_DEFAULTS)) {
-    assert.ok(readme.includes(`\`${key}\``), `README mentions config key ${key}`);
+    assert.ok(configuration.includes(`| \`${key}\` |`), `reference/configuration.md has a row for config key ${key}`);
   }
   for (const kind of Object.keys(BUILTIN_AGENTS)) {
-    assert.ok(readme.includes(`\`${kind}\``), `README mentions agent kind ${kind}`);
+    assert.ok(configuration.includes(`| \`${kind}\` |`), `reference/configuration.md has a row for agent kind ${kind}`);
   }
+  const resultLine = doc("reference/result-line.md");
   for (const kind of ERROR_KINDS) {
-    assert.ok(readme.includes(`\`${kind}\``), `README mentions error kind ${kind}`);
+    assert.ok(resultLine.includes(`| \`${kind}\` |`), `reference/result-line.md has a row for error kind ${kind}`);
   }
-  assert.ok(readme.includes(RESULT_MARKER));
+  assert.ok(resultLine.includes(RESULT_MARKER));
 });
 
-test("README documents the hook, the overlay, the environment overrides and every module", () => {
-  for (const token of ["worktree.removed", NONO_BIN_ENV, "HERDR_AGENT", "--listen-port", "--open-port", "OPENCODE_PASSWORD", "profiles/herdr-opencode-client.json", "profiles/herdr-opencode-server.json", "docs/security.md", "docs/manual-testing.md", "bin/run.sh", "scripts/write-node-path.sh", "scripts/install-keybindings.sh", "scripts/run-action.sh"]) {
-    assert.ok(readme.includes(token), `README mentions ${token}`);
+test("the docs cover the hook, the environment overrides, the profiles and every module", () => {
+  for (const token of ["worktree.removed", NONO_BIN_ENV, "HERDR_AGENT", "--listen-port", "--open-port", "OPENCODE_PASSWORD", "profiles/herdr-opencode-client.json", "profiles/herdr-opencode-server.json", "bin/run.sh", "scripts/write-node-path.sh", "scripts/install-keybindings.sh", "scripts/run-action.sh"]) {
+    assert.ok(allDocs.includes(token), `docs mention ${token}`);
   }
+  const layout = doc("reference/source-layout.md");
   for (const file of readdirSync(path.join(ROOT, "src")).filter((name) => name.endsWith(".mjs"))) {
-    assert.ok(readme.includes(`src/${file}`), `README file table lists src/${file}`);
+    assert.ok(layout.includes(`src/${file}`), `reference/source-layout.md lists src/${file}`);
+  }
+});
+
+test("every docs page sits in a Diátaxis folder, is in the site nav and is linked from the README", () => {
+  const nav = readFileSync(path.join(ROOT, "mkdocs.yml"), "utf8");
+  for (const page of docPages) {
+    assert.match(page, /^(tutorials|how-to|reference|explanation)\//, `${page} is a tutorial, how-to guide, reference or explanation`);
+    assert.ok(nav.includes(`: ${page}\n`), `mkdocs.yml nav lists ${page}`);
+    assert.ok(readme.includes(`](docs/${page})`), `README links docs/${page}`);
   }
 });
 

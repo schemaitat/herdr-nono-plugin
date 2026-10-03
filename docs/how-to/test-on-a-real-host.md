@@ -1,4 +1,4 @@
-# Manual test plan
+# Test on a real host
 
 The automated tests exercise the plugin against fake `nono`, `herdr` and
 `opencode` executables and fake `/proc` trees. This checklist covers what
@@ -17,7 +17,7 @@ when the focused pane has none.
 ## 0. Prerequisites
 
 ```bash
-uname -r                       # Linux with Landlock; 6.7+ (ABI v4) for network rules, see docs/security.md
+uname -r                       # Linux with Landlock; 6.7+ (ABI v4) for network rules, see explanation/security.md
 node --version                 # v20 or newer
 herdr --version                # 0.9.0 or newer
 nono --version                 # 0.78.0 or newer

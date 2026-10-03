@@ -1,6 +1,58 @@
-# Design notes
+# Design
 
-## Two processes
+This page explains why the plugin is built the way it is. For the exact
+commands and settings, see the [reference](../reference/actions.md).
+
+## Why two sandboxes
+
+OpenCode 2.x is a client and a server, and the server runs the model loop and
+every tool call. Plain `opencode` talks to a background service on the host,
+so the tools would run outside any sandbox even with the client inside one.
+The plugin therefore starts a **private server per pane in its own sandbox**
+and the **TUI client in a second sandbox**, joined by one localhost port it
+picks and a password it generates for each launch:
+
+- The server sandbox reaches the internet only through nono's proxy, so
+  proxy-aware tools (`curl`, `git` over HTTPS, `npm`, `pip`, the model API)
+  work, while direct TCP connects, including to services on localhost such as
+  the OpenCode host service on `127.0.0.1:4096`, are denied.
+- The client sandbox has no network at all except its server's port.
+- Both block Herdr's control socket, the systemd and D-Bus sockets and the SSH
+  and GPG agents.
+
+After every launch the plugin checks from outside, by walking both sandboxes'
+process trees, that every process is confined and that the server is the one
+it started, and stops the agent when not.
+
+```mermaid
+flowchart LR
+    subgraph host[Host]
+      HERDR["Herdr pane"]
+      BRIDGE["bridge (node)<br/>picks port + password,<br/>launches, verifies, records"]
+      SVC["OpenCode host service<br/>127.0.0.1:4096"]
+      NET(("internet"))
+    end
+    subgraph client["client sandbox (network blocked)"]
+      CLIENT["opencode --server http://127.0.0.1:P<br/>(TUI)"]
+    end
+    subgraph server["server sandbox (egress via nono proxy)"]
+      SERVER["opencode serve --port P"]
+      TOOLS["bash / edits / other tools"]
+    end
+    PROXY["nono proxy"]
+    HERDR --> BRIDGE
+    BRIDGE -->|"nono run --open-port P"| CLIENT
+    BRIDGE -->|"nono run --listen-port P"| SERVER
+    CLIENT -->|"port P + password"| SERVER --> TOOLS
+    SERVER --> PROXY --> NET
+    TOOLS -. "denied" .-> SVC
+    BRIDGE -.->|"/proc: no_new_privs, NONO_CAP_FILE,<br/>server inside the server sandbox"| server
+```
+
+[What the sandbox stops](security.md) has the evidence for each claim and the
+reason a single sandbox does not work.
+
+## Two plugin processes
 
 Herdr runs plugin actions as short-lived child processes without a TTY and
 caps their captured output at 64 KiB. Anything interactive therefore has to
@@ -46,6 +98,18 @@ form.
     the terminal, record `exited` (or `failed`) and the exit code, print how
     to resume.
 
+## Which directory gets granted
+
+The workspace's worktree checkout, or the workspace directory, or the git
+repository containing the focused pane's directory, or that directory itself
+when it is not inside a repository. That directory is passed to
+`nono run --allow`; the pane's own directory only decides where the agent
+starts. A grant must not change with every `cd` in the pane, so the plugin
+never uses `--allow-cwd`, and it refuses your home directory and `/`, which
+would undo the sandbox. Everything else the agent may touch comes from the
+profile: the OpenCode pack grants OpenCode's own state and config
+directories, the language toolchains and `/tmp`.
+
 ## Why these choices
 
 - **A private server per pane, never the host service.** OpenCode's server
@@ -57,7 +121,7 @@ form.
   (client and server in one sandbox, joined over stdio and an ephemeral
   port) with open egress. Open egress means open loopback, and the tools
   could reach the unsandboxed OpenCode host service. Every nono mode that
-  closes loopback breaks standalone mode (`docs/security.md`), but the proxy
+  closes loopback breaks standalone mode ([security](security.md#why-not-standalone-in-one-sandbox)), but the proxy
   mode accepts an explicit `--listen-port` and the blocked mode an explicit
   `--open-port`. So the server runs in proxy mode with every domain allowed
   (internet through the proxy, no direct connects), the client with no

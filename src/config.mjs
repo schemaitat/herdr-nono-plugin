@@ -22,7 +22,7 @@ export const VERIFICATION_FAILURE_ACTIONS = Object.freeze(["stop", "warn"]);
 
 /**
  * The validated user configuration: every key of {@link CONFIG_DEFAULTS} with
- * the type the README documents for it. New config keys are added here too.
+ * the type docs/reference/configuration.md documents for it. New config keys are added here too.
  * @typedef {object} PluginConfig
  * @property {string} agentKind
  * @property {Record<string, string[]>} agentArgs

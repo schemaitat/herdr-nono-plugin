@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Documentation site on GitHub Pages (MkDocs Material), organised by Diátaxis into a tutorial,
+  how-to guides, reference and explanation; the README is now a short landing page.
+- `justfile` with `just docs` (live preview) and `just docs-build` (strict build, as in CI).
+
 ## 0.1.0 - 2026-09-29
 
 Initial release.
