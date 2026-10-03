@@ -57,6 +57,30 @@ the two sandboxes: the server in proxy mode with `--listen-port P`, the client
 blocked with `--open-port P`. The nono-test launcher had found the same
 layout for its allowlisted variant.
 
+## Kernel requirement: Landlock ABI v4 (Linux 6.7+)
+
+The network half of the layout relies on Landlock's TCP `bind`/`connect`
+rules, which arrived with Landlock ABI v4 in Linux 6.7:
+
+- In the server sandbox (proxy mode), these rules confine connects to nono's
+  proxy, which is what denies direct TCP, including loopback and the host
+  service. They also allow the one `--listen-port P` bind.
+- In the client sandbox (`network.block: true`), these rules allow only the
+  connect to `--open-port P`.
+
+The rest does not need ABI v4:
+
+- Filesystem confinement (the `--allow <root>` grant and the pack's paths)
+  works with older Landlock ABIs.
+- AF_UNIX pathname mediation goes through seccomp notifications, not Landlock.
+
+Not tested: what nono 0.78 does on a kernel older than 6.7, whether it refuses
+to start or runs without the network rules. The plugin does not check the
+kernel or the Landlock ABI itself. On such a host, run `doctor` and confirm
+that the escape probe passes and that it reports `opencodeServicePort: denied`
+before you rely on the loopback lockdown. Everything in this document was
+verified on Linux 7.0.
+
 ## Escape paths the shipped profiles close
 
 The stock `nolabs-ai/opencode` pack, and a user profile extending it without

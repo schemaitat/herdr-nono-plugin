@@ -22,5 +22,6 @@ Initial release.
 - An escape probe check that the tools cannot connect to the host service's port.
 - Custom agents with their own command, nono profile and server pattern.
 - `worktree.removed` hook that stops the agents of a removed worktree and forgets their mappings.
-- A live `sandboxes` overlay, result marker line and stable error kinds for orchestration,
+- An interactive `sandboxes` overlay (selectable table, details panel, keys to verify, stop and
+  prune with confirmation), result marker line and stable error kinds for orchestration,
   `scripts/run-action.sh` matching its invocation by `log_id`.

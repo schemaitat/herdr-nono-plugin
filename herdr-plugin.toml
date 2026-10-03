@@ -74,7 +74,7 @@ command = ["sh", "bin/run.sh", "src/action.mjs"]
 [[actions]]
 id = "sandboxes"
 title = "Show the sandboxes overlay"
-description = "Open a live overlay listing every sandboxed agent this plugin tracks, its pane, its nono session and its verification."
+description = "Open the interactive overlay: every sandboxed agent with its pane, sandboxes and verification, a details panel, and keys to verify, stop and prune."
 contexts = ["global", "workspace", "pane"]
 command = ["sh", "bin/run.sh", "src/action.mjs"]
 

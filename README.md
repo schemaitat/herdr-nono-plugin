@@ -147,7 +147,7 @@ for its result.
 | `info` | pane | Prints the mapping, the resolved agent and profile, the live nono sessions and the last verification. |
 | `verify-sandbox` | pane | Verifies the running sandboxes now: every process confined, the agent's server inside the server sandbox, the client pointed at it, no connection to an unsandboxed host service. |
 | `prune-mappings` | global, workspace, pane | Drops mappings whose pane is gone and whose agent and shells are not running. |
-| `sandboxes` | global, workspace, pane | Opens a live overlay of every mapping: pane, session, state, nono status, verification. `q` closes it. |
+| `sandboxes` | global, workspace, pane | Opens the interactive overlay: every agent with its pane, sandboxes and verification, a details panel, and keys to verify, stop and prune (see below). |
 | `list-sandboxes` | global, workspace, pane | Lists every mapping with its nono session state and verification. |
 | `forget-mapping` | pane | Drops the focused pane's mapping. Refuses while its agent or a shell runs. |
 
@@ -165,6 +165,54 @@ Compared with the Docker Sandboxes plugin, `fetch-changes`, `open-port` and
 `replace-sandbox` are gone: a nono sandbox is a process, not a VM, so there is
 no clone to fetch from, no port to publish (the agent shares the host's
 network namespace) and nothing to delete. `verify-sandbox` is new.
+
+## The overlay
+
+`prefix+shift+o` (or the `sandboxes` action) opens a full-screen view of every
+agent the plugin tracks. It refreshes every three seconds. For the selected
+agent it draws the client and server sandboxes side by side, each titled with
+its network policy (from the resolved profile) and listing its live processes
+from `/proc`: the TUI in the client sandbox (cyan), the server and every tool
+it runs in the server sandbox (magenta, tools in yellow), each marked `✔`
+confined or `✖` not.
+
+```text
+ nono sandboxes                                                              1 agent · 1 running · 7:53:28 AM
+┌─ Agents ───────────────────────────────────────────────────────────────────────────────────────────────────┐
+│     PANE       SESSION        AGENT     STATE    NONO                VERIFIED  DIRECTORY                   │
+│ ▶●  wQ:p2      …96db19cd2fd8  opencode  running  client+server       ✔ ok      ~/projects/app              │
+└────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+ client ──:46541──▶ server ──▶ nono proxy ──▶ internet  ✖ localhost ✖ Herdr ✖ systemd ✖ ssh-agent
+┌─ client · no network but :46541 ────────────────────┐┌─ server · on :46541, proxy egress ──────────────────┐
+│ ✔ 3243039 tui    opencode --server http://127.0.0.… ││ ✔ 3243022 server opencode serve --hostname 127.0.0… │
+│                                                     ││ ✔ 3243410 tool   └ bash -c npm test                 │
+│                                                     ││ ✔ 3243414 tool     └ vitest run                     │
+└─────────────────────────────────────────────────────┘└─────────────────────────────────────────────────────┘
+┌─ Details ──────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ Session     herdr-opencode-96db19cd2fd8                                                                    │
+│ Pane        wQ:p2 (open)  workspace wQ                                                                     │
+│ Profiles    client herdr-opencode-client · server herdr-opencode-server                                    │
+│ Verified    confined: 4 processes, server pid 3243022 (7:53:20 AM)                                         │
+└────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+ ✔ verified: confined: 4 processes, server pid 3243022
+ ↑↓/jk  select   v  verify   x  stop   p  prune   r  refresh   q  quit
+```
+
+On a short screen the details panel gives way to the sandboxes. A server
+profile that leaves localhost reachable shows up in the server's title
+(`OPEN egress + localhost`) and in the flow line.
+
+| Key | Does |
+| --- | --- |
+| `↑` `↓` / `j` `k`, `PgUp` `PgDn` | Select an agent; the details panel follows |
+| `v` | `verify-sandbox` for the selected agent; the result shows in the status line |
+| `x` | `stop` the selected agent and its server, after a `y/N` confirmation |
+| `p` | `prune-mappings`: forget every mapping whose pane is gone and that runs nothing (marked `✗` and counted as stale), after a `y/N` confirmation |
+| `r` | Refresh now |
+| `q`, `ctrl+c` | Close |
+
+`●` is a running agent, `○` an idle mapping, `✖` a failed launch; a failed
+launch's reason is in the details panel (`Last error`).
 
 ## Key bindings
 

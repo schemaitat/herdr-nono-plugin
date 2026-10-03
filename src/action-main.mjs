@@ -21,7 +21,7 @@ import { createNonoClient, summarizeProfile } from "./nono.mjs";
 import { runProbes } from "./probes.mjs";
 import { emitResult, failurePayload } from "./result.mjs";
 import { buildPaneCommand } from "./shell.mjs";
-import { deletePaneEntry, deletePaneEntryIfUnchanged, getPaneEntry, loadState, paneLockPath, savePaneEntry, withPaneLock } from "./state.mjs";
+import { deletePaneEntry, getPaneEntry, loadState, paneLockPath, savePaneEntry, withPaneLock } from "./state.mjs";
 import { summarizeVerification } from "./verify.mjs";
 
 /**
@@ -537,35 +537,14 @@ const ACTIONS = {
     return { payload, lines };
   },
 
-  async "prune-mappings"(deps) {
-    const state = loadState(deps.pluginEnv.stateDir);
+  "prune-mappings"(deps) {
     let paneIds;
     try {
-      paneIds = new Set(deps.herdr.listPaneIds());
+      paneIds = deps.herdr.listPaneIds();
     } catch (error) {
       throw new PluginError(errorKindOf(error), `Cannot prune without Herdr's pane list: ${errorMessageOf(error)}`, { output: /** @type {any} */ (error)?.output });
     }
-    const pruned = [];
-    const kept = [];
-    for (const entry of Object.values(state.panes)) {
-      if (paneIds.has(entry.paneId)) {
-        continue;
-      }
-      // Decided again under the lock: a mapping rewritten since the snapshot, or one
-      // whose bridge or shell still runs (the pane closed under a live agent), stays.
-      const outcome = withPaneLock(deps.pluginEnv.stateDir, entry.paneId, () => {
-        const now = getPaneEntry(deps.pluginEnv.stateDir, entry.paneId);
-        if (now && (bridgeIsRunning(now) || shellIsRunning(now))) {
-          return "busy";
-        }
-        return deletePaneEntryIfUnchanged(deps.pluginEnv.stateDir, entry.paneId, entry) ? "pruned" : "changed";
-      });
-      if (outcome === "pruned") {
-        pruned.push({ paneId: entry.paneId, sessionName: entry.sessionName });
-      } else {
-        kept.push({ paneId: entry.paneId, sessionName: entry.sessionName, reason: outcome === "busy" ? "its agent or shell still runs; stop it first" : "mapping changed while pruning; run prune-mappings again" });
-      }
-    }
+    const { pruned, kept } = deps.lifecycle.prune(paneIds);
     const lines = [`pruned ${pruned.length} mapping${pruned.length === 1 ? "" : "s"}`];
     for (const item of pruned) lines.push(`  ${item.paneId}\t${item.sessionName}`);
     for (const item of kept) lines.push(`kept ${item.paneId}\t${item.sessionName}\t${item.reason}`);

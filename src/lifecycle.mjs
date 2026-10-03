@@ -24,7 +24,7 @@ import { detectOpencodeService, hostServiceRefusal, hostServiceWarning } from ".
 import { serverSessionName, shellSessionName } from "./naming.mjs";
 import { buildRunArgs, createNonoClient, summarizeProfile } from "./nono.mjs";
 import { procfsAvailable } from "./procfs.mjs";
-import { getPaneEntry, loadState, ownStartToken, processStartToken, requirePaneEntry, updatePaneEntry, withPaneLock } from "./state.mjs";
+import { deletePaneEntryIfUnchanged, getPaneEntry, loadState, ownStartToken, processStartToken, requirePaneEntry, updatePaneEntry, withPaneLock } from "./state.mjs";
 import { summarizeVerification, verifySession } from "./verify.mjs";
 
 /**
@@ -890,5 +890,37 @@ export function createLifecycle({ stateDir, config, pluginRoot, nono = createNon
     return { mappings, sessionError };
   }
 
-  return { launch, shell, stop, verify, describe, listAll, acknowledgeBridge, releaseBridge, acknowledgeShell, releaseShell, sessionsOf, hostServiceFor, toolsReachLoopback };
+  /**
+   * Drops every mapping whose Herdr pane is gone and whose agent and shells
+   * are not running. Each candidate is decided again under its lock, so a
+   * mapping rewritten since the snapshot, or one whose bridge or shell still
+   * runs (the pane closed under a live agent), stays.
+   * @param {Iterable<string>} livePaneIds Every pane id Herdr knows right now.
+   * @returns {{pruned: Array<{paneId: string, sessionName: string}>, kept: Array<{paneId: string, sessionName: string, reason: string}>}}
+   */
+  function prune(livePaneIds) {
+    const paneIds = new Set(livePaneIds);
+    const pruned = [];
+    const kept = [];
+    for (const entry of Object.values(loadState(stateDir).panes)) {
+      if (paneIds.has(entry.paneId)) {
+        continue;
+      }
+      const outcome = withPaneLock(stateDir, entry.paneId, () => {
+        const now = getPaneEntry(stateDir, entry.paneId);
+        if (now && (bridgeIsRunning(now) || shellIsRunning(now))) {
+          return "busy";
+        }
+        return deletePaneEntryIfUnchanged(stateDir, entry.paneId, entry) ? "pruned" : "changed";
+      });
+      if (outcome === "pruned") {
+        pruned.push({ paneId: entry.paneId, sessionName: entry.sessionName });
+      } else {
+        kept.push({ paneId: entry.paneId, sessionName: entry.sessionName, reason: outcome === "busy" ? "its agent or shell still runs; stop it first" : "mapping changed while pruning; run prune-mappings again" });
+      }
+    }
+    return { pruned, kept };
+  }
+
+  return { launch, shell, stop, verify, describe, listAll, prune, acknowledgeBridge, releaseBridge, acknowledgeShell, releaseShell, sessionsOf, hostServiceFor, toolsReachLoopback };
 }

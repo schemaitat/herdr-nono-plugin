@@ -17,7 +17,7 @@ when the focused pane has none.
 ## 0. Prerequisites
 
 ```bash
-uname -r                       # Linux with Landlock; 6.7+ for network rules
+uname -r                       # Linux with Landlock; 6.7+ (ABI v4) for network rules, see docs/security.md
 node --version                 # v20 or newer
 herdr --version                # 0.9.0 or newer
 nono --version                 # 0.78.0 or newer
@@ -115,17 +115,22 @@ no "review denied paths" prompt should appear.
 
 ## 7. Overlay and listing
 
-Press `prefix+shift+o`. Expect one row with state `running`, NONO `running`,
-VERIFIED `ok`; `q` closes it. `nonorun list-sandboxes` shows the same.
+Press `prefix+shift+o`. Expect a full-screen view with a title bar, an
+Agents table (your agent `●` `running`, NONO `client+server`, VERIFIED
+`✔ ok`), the flow line, a cyan `client · no network but :<port>` box with the
+TUI process and a magenta `server · on :<port>, proxy egress` box with
+`opencode serve` (while a tool runs, its processes appear under it as
+`tool`), and a Details panel for the selected row. Move with `j`/`k`, press `v`
+(status line: `confined: ...`), `r`, then `q`. `nonorun list-sandboxes` shows
+the same mappings.
 
 ## 8. Pane closed under a running agent
 
 Close the agent pane with Herdr. Expect `nono ps` to no longer list the
-session within a few seconds. Then:
-
-```bash
-nonorun prune-mappings    # the mapping is pruned
-```
+session within a few seconds. Open the overlay: the row shows `✗` after its
+pane and the title bar `1 stale`. Press `p`, answer `y`: the status line says
+`pruned 1 mapping` and the row disappears. (`nonorun prune-mappings` does the
+same from a terminal.)
 
 ## 9. Worktree hook
 
