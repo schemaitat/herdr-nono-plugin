@@ -83,46 +83,56 @@ const doc = (page) => readFileSync(path.join(docsDir, page), "utf8");
 const allDocs = docPages.map(doc).join("\n");
 
 test("the reference documents every action, config key, agent kind and error kind", () => {
-  const actions = doc("reference/actions.md");
+  const actions = doc("actions.md");
   for (const id of ACTION_IDS) {
-    assert.ok(actions.includes(`| \`${id}\` |`), `reference/actions.md has a row for action ${id}`);
-    assert.ok(doc("reference/result-line.md").includes(`| \`${id}\` |`), `reference/result-line.md has the fields of action ${id}`);
+    assert.equal(actions.split(`| \`${id}\` |`).length - 1, 2, `actions.md has a row for action ${id} and one for its result fields`);
   }
   const words = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen"];
   const count = words[ACTION_IDS.length];
-  for (const page of ["how-to/install.md", "how-to/test-on-a-real-host.md", "tutorials/first-sandboxed-agent.md"]) {
+  for (const page of ["getting-started.md", "development.md"]) {
     assert.ok(doc(page).includes(`${count} actions`), `${page} names ${count} actions`);
   }
-  const configuration = doc("reference/configuration.md");
+  const configuration = doc("configuration.md");
   for (const key of Object.keys(CONFIG_DEFAULTS)) {
-    assert.ok(configuration.includes(`| \`${key}\` |`), `reference/configuration.md has a row for config key ${key}`);
+    assert.ok(configuration.includes(`| \`${key}\` |`), `configuration.md has a row for config key ${key}`);
   }
   for (const kind of Object.keys(BUILTIN_AGENTS)) {
-    assert.ok(configuration.includes(`| \`${kind}\` |`), `reference/configuration.md has a row for agent kind ${kind}`);
+    assert.ok(configuration.includes(`| \`${kind}\` |`), `configuration.md has a row for agent kind ${kind}`);
   }
-  const resultLine = doc("reference/result-line.md");
   for (const kind of ERROR_KINDS) {
-    assert.ok(resultLine.includes(`| \`${kind}\` |`), `reference/result-line.md has a row for error kind ${kind}`);
+    assert.ok(actions.includes(`| \`${kind}\` |`), `actions.md has a row for error kind ${kind}`);
   }
-  assert.ok(resultLine.includes(RESULT_MARKER));
+  assert.ok(actions.includes(RESULT_MARKER));
 });
 
 test("the docs cover the hook, the environment overrides, the profiles and every module", () => {
   for (const token of ["worktree.removed", NONO_BIN_ENV, "HERDR_AGENT", "--listen-port", "--open-port", "OPENCODE_PASSWORD", "profiles/herdr-opencode-client.json", "profiles/herdr-opencode-server.json", "bin/run.sh", "scripts/write-node-path.sh", "scripts/install-keybindings.sh", "scripts/run-action.sh"]) {
     assert.ok(allDocs.includes(token), `docs mention ${token}`);
   }
-  const layout = doc("reference/source-layout.md");
+  const layout = doc("development.md");
   for (const file of readdirSync(path.join(ROOT, "src")).filter((name) => name.endsWith(".mjs"))) {
-    assert.ok(layout.includes(`src/${file}`), `reference/source-layout.md lists src/${file}`);
+    assert.ok(layout.includes(`src/${file}`), `development.md lists src/${file}`);
   }
 });
 
-test("every docs page sits in a Diátaxis folder, is in the site nav and is linked from the README", () => {
+test("every docs page is in the site nav and linked from the README, which links the site first", () => {
   const nav = readFileSync(path.join(ROOT, "mkdocs.yml"), "utf8");
   for (const page of docPages) {
-    assert.match(page, /^(tutorials|how-to|reference|explanation)\//, `${page} is a tutorial, how-to guide, reference or explanation`);
     assert.ok(nav.includes(`: ${page}\n`), `mkdocs.yml nav lists ${page}`);
     assert.ok(readme.includes(`](docs/${page})`), `README links docs/${page}`);
+  }
+  const firstParagraph = readme.split("\n\n")[1];
+  assert.match(firstParagraph, /schemaitat\.github\.io\/herdr-nono-plugin/, "the docs link comes right after the title");
+});
+
+test("the README and the key bindings page list every installed chord", () => {
+  const installer = readFileSync(path.join(ROOT, "scripts", "install-keybindings.sh"), "utf8");
+  const chords = [...installer.matchAll(/^add_binding "([^"]+)" "([^"]+)"/gm)];
+  assert.ok(chords.length > 0);
+  for (const [, chord, action] of chords) {
+    for (const [name, text] of [["README.md", readme], ["docs/key-bindings.md", doc("key-bindings.md")]]) {
+      assert.ok(text.includes(`| \`${chord}\` | \`${action}\` |`), `${name} lists ${chord} -> ${action}`);
+    }
   }
 });
 

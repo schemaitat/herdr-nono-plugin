@@ -1,7 +1,9 @@
-# The overlay
+# Sandboxes overlay
 
-`prefix+shift+o`, or the `sandboxes` action, opens a full-screen view of every
-agent the plugin tracks. It refreshes every three seconds.
+`prefix+shift+o` (the `sandboxes` action) opens a full-screen view of every
+agent the plugin tracks. It is the place to see, for each agent, which client
+belongs to which server, what each sandbox may reach, and which processes run
+inside them. It refreshes every three seconds.
 
 ```text
  nono sandboxes                                                              1 agent · 1 running · 7:53:28 AM
@@ -25,37 +27,42 @@ agent the plugin tracks. It refreshes every three seconds.
  ↑↓/jk  select   v  verify   x  stop   p  prune   r  refresh   q  quit
 ```
 
-## Areas
+## Reading it
 
-| Area | Shows |
-| --- | --- |
-| Title bar | Agent count, running count, stale count, time of the last refresh |
-| Agents | One row per mapping: pane, session, agent kind, lifecycle state, live nono sessions, last verification, granted directory |
-| Flow line | The selected agent's network path and what it cannot reach |
-| Sandbox boxes | The client (cyan) and server (magenta) sandboxes, each titled with its network policy from the resolved profile, listing live processes from `/proc`; tools in yellow |
-| Details | Session, pane, profiles, last verification, `Last error` of a failed launch. Hidden on a short screen. |
-| Status line | Result of the last key action |
+- **Agents** has one row per agent. `NONO` shows which of its two nono
+  sessions are alive: `client+server` is healthy; a lone `server` is a
+  leftover the next launch or `x` cleans up.
+- **The flow line** is the selected agent's network path: the client reaches
+  only its server's port, the server reaches the internet only through nono's
+  proxy, and the `✖` targets are what neither can reach.
+- **The two boxes** are the selected agent's sandboxes, each titled with the
+  network policy of its resolved profile. The client box (cyan) holds the TUI.
+  The server box (magenta) holds `opencode serve` and, indented below it, every
+  tool process it runs (yellow). Each process is marked `✔` confined or `✖`
+  not, read live from `/proc`.
+- **Details** shows the session name, pane, both [profiles](profiles.md), the
+  last verification and, for a failed launch, `Last error`. It hides on a short
+  screen.
 
 A server profile that leaves localhost reachable shows up in the server's
-title (`OPEN egress + localhost`) and in the flow line.
+title (`OPEN egress + localhost`) and in the flow line (`! localhost open`).
 
 ## Symbols
 
 | Symbol | Meaning |
 | --- | --- |
-| `●` | Running agent |
-| `○` | Idle mapping |
-| `✖` (row) | Failed launch |
-| `✗` after the pane | Pane is gone; counted as stale |
-| `✔` / `✖` (process) | Process confined / not confined |
+| `●` / `○` | Running agent / idle mapping (the agent exited) |
+| `✖` at the start of a row | Failed launch |
+| `✗` after the pane | Pane is gone; the mapping is stale |
+| `✔` / `✖` on a process | Confined / not confined |
 
 ## Keys
 
 | Key | Does |
 | --- | --- |
-| `↑` `↓` / `j` `k`, `PgUp` `PgDn` | Select an agent; the details panel follows |
-| `v` | `verify-sandbox` for the selected agent; the result shows in the status line |
-| `x` | `stop` the selected agent and its server, after a `y/N` confirmation |
-| `p` | `prune-mappings`: forget every stale mapping that runs nothing, after a `y/N` confirmation |
+| `↑` `↓` / `j` `k`, `PgUp` `PgDn` | Select an agent |
+| `v` | Verify the selected agent now (`verify-sandbox`) |
+| `x` | Stop the selected agent and its server, after `y/N` |
+| `p` | Forget every stale mapping that runs nothing, after `y/N` |
 | `r` | Refresh now |
 | `q`, `ctrl+c` | Close |

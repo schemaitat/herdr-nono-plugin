@@ -2,8 +2,10 @@
 
 ## Unreleased
 
-- Documentation site on GitHub Pages (MkDocs Material), organised by Diátaxis into a tutorial,
-  how-to guides, reference and explanation; the README is now a short landing page.
+- Documentation site on GitHub Pages (MkDocs Material) with the page index in a left sidebar:
+  eleven short pages, with dedicated pages for key bindings, the sandboxes overlay, changing the
+  server and client profiles, and OpenCode's security model. The README links the site first and
+  says early that the plugin is built for OpenCode.
 - `justfile` with `just docs` (live preview) and `just docs-build` (strict build, as in CI).
 
 ## 0.1.0 - 2026-09-29
