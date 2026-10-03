@@ -7,40 +7,29 @@ repo_name: schemaitat/herdr-nono-plugin
 edit_uri: ""
 
 # The pages are the repo's own Markdown: README.md becomes the home page and
-# CHANGELOG.md the changelog (added by the hook), docs/ the rest, organised
-# by Diátaxis (https://diataxis.fr): tutorials, how-to guides, reference,
-# explanation.
+# CHANGELOG.md the changelog (added by the hook), docs/ the rest. The nav is
+# the left sidebar.
 docs_dir: docs
 hooks:
   - .github/mkdocs/hooks.py
 
 nav:
   - Home: index.md
-  - Tutorial:
-      - Your first sandboxed agent: tutorials/first-sandboxed-agent.md
-  - How-to guides:
-      - Install: how-to/install.md
-      - Add the key bindings: how-to/key-bindings.md
-      - Manage running agents: how-to/manage-agents.md
-      - Change what the sandbox may touch: how-to/grant-access.md
-      - Run another agent: how-to/custom-agent.md
-      - Drive the plugin from scripts: how-to/script-actions.md
-      - Troubleshoot: how-to/troubleshoot.md
-      - Test on a real host: how-to/test-on-a-real-host.md
-      - Work on the plugin: how-to/develop.md
+  - Getting started: getting-started.md
+  - Use:
+      - Key bindings: key-bindings.md
+      - Sandboxes overlay: overlay.md
+      - Working with agents: agents.md
+      - Profiles: profiles.md
+      - Troubleshooting: troubleshooting.md
+  - Security: security.md
   - Reference:
-      - Actions: reference/actions.md
-      - Overlay: reference/overlay.md
-      - Configuration: reference/configuration.md
-      - Result line: reference/result-line.md
-      - Profiles: reference/profiles.md
-      - Verification: reference/verification.md
-      - State: reference/state.md
-      - Source layout: reference/source-layout.md
+      - Configuration: configuration.md
+      - Actions and scripting: actions.md
+  - About:
+      - Design: design.md
+      - Development: development.md
       - Changelog: changelog.md
-  - Explanation:
-      - Design: explanation/design.md
-      - What the sandbox stops: explanation/security.md
 
 # Fail the strict build on pages missing from nav and on broken links.
 validation:
@@ -53,9 +42,7 @@ theme:
   name: material
   features:
     - content.code.copy
-    - navigation.indexes
     - navigation.sections
-    - navigation.tabs
     - navigation.top
     - search.highlight
     - toc.follow
