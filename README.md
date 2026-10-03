@@ -83,23 +83,32 @@ flowchart LR
 
 ## Install
 
-From a checkout (Herdr's `link` does not run the build step, so record the
-node path yourself):
-
 ```bash
-git clone <this repository> herdr-nono-plugin
-cd herdr-nono-plugin && sh scripts/write-node-path.sh
-herdr plugin link "$PWD"
+nono pull nolabs-ai/opencode                      # the OpenCode pack the profiles extend
+herdr plugin install schemaitat/herdr-nono-plugin
 ```
 
-Once the repository is published, `herdr plugin install <owner>/herdr-nono-plugin`
-clones it and runs the build step itself.
+Herdr clones the repository and runs the manifest's build step,
+`scripts/write-node-path.sh`, which records where your `node` lives. Pass
+`--yes` to skip the confirmation prompt.
 
-Verify what got registered and that nono answers:
+Verify what got registered and that nono and the profiles work:
 
 ```bash
-herdr plugin action list --plugin nono.sandbox         # twelve actions
-sh scripts/run-action.sh doctor                         # nono, profile, escape probe
+herdr plugin action list --plugin nono.sandbox          # twelve actions
+herdr plugin action invoke doctor --plugin nono.sandbox
+herdr plugin log list --plugin nono.sandbox --limit 1   # "ok":true in the first stdout line
+```
+
+For development, link a checkout instead. `herdr plugin link` does not run
+the build step, so record the node path yourself; `scripts/run-action.sh`
+then runs an action and waits for its result:
+
+```bash
+git clone https://github.com/schemaitat/herdr-nono-plugin.git
+cd herdr-nono-plugin && sh scripts/write-node-path.sh
+herdr plugin link "$PWD"
+sh scripts/run-action.sh doctor
 ```
 
 ## First run
