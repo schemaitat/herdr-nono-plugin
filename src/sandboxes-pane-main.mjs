@@ -5,10 +5,12 @@
  * @module sandboxes-pane-main
  */
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
-import { loadConfig } from "./config.mjs";
+import { resolveAgent } from "./agents.mjs";
+import { configPath, loadConfig } from "./config.mjs";
 import { readPluginEnv, requirePluginDirs } from "./context.mjs";
 import { PluginError, errorMessageOf } from "./errors.mjs";
 import { createHerdrClient } from "./herdr.mjs";
@@ -169,9 +171,11 @@ export function sandboxTree(supervisorPid, procRoot = "/proc") {
  * `nono ps` and one `herdr pane list` per frame, however many mappings exist.
  * Running agents also get the process trees of their client and server
  * sandboxes and a summary of each sandbox's profile (cached by reference).
- * @param {{stateDir: string, nono: {listSessions: (signal?: AbortSignal|null) => Promise<Array<Record<string, any>>>, showProfile?: (ref: string, signal?: AbortSignal|null) => Promise<Record<string, any>>}, herdr: {listPaneIds: (signal?: AbortSignal|null) => Promise<string[]>}, signal?: AbortSignal|null, procRoot?: string, profileCache?: Map<string, any>}} input
+ * `configured` names the profiles the next launch uses; they come back
+ * summarized the same way, for the profiles view.
+ * @param {{stateDir: string, nono: {listSessions: (signal?: AbortSignal|null) => Promise<Array<Record<string, any>>>, showProfile?: (ref: string, signal?: AbortSignal|null) => Promise<Record<string, any>>}, herdr: {listPaneIds: (signal?: AbortSignal|null) => Promise<string[]>}, signal?: AbortSignal|null, procRoot?: string, profileCache?: Map<string, any>, configured?: {client: string|null, server: string|null}|null}} input
  */
-export async function collectSandboxes({ stateDir, nono, herdr, signal = null, procRoot = "/proc", profileCache = new Map() }) {
+export async function collectSandboxes({ stateDir, nono, herdr, signal = null, procRoot = "/proc", profileCache = new Map(), configured = null }) {
   const state = loadState(stateDir);
   let sessions = null;
   let sessionError = null;
@@ -214,6 +218,7 @@ export async function collectSandboxes({ stateDir, nono, herdr, signal = null, p
       entry,
     };
   });
+  const configuredProfiles = configured ? { client: { ref: configured.client, summary: null }, server: { ref: configured.server, summary: null } } : null;
   if (typeof nono.showProfile === "function") {
     const summary = async (ref) => {
       if (!ref) return null;
@@ -229,8 +234,12 @@ export async function collectSandboxes({ stateDir, nono, herdr, signal = null, p
     for (const row of rows) {
       row.network = { client: await summary(row.entry.profile), server: await summary(row.entry.serverProfile) };
     }
+    if (configuredProfiles) {
+      configuredProfiles.client.summary = await summary(configuredProfiles.client.ref);
+      configuredProfiles.server.summary = await summary(configuredProfiles.server.ref);
+    }
   }
-  return { rows, sessionError, paneIds: paneIds ? [...paneIds] : null };
+  return { rows, sessionError, paneIds: paneIds ? [...paneIds] : null, configured: configuredProfiles };
 }
 
 const SGR = { reset: 0, bold: 1, dim: 2, inverse: 7, red: 31, green: 32, yellow: 33, blue: 34, magenta: 35, cyan: 36, gray: 90 };
@@ -333,9 +342,119 @@ function networkLabel(summary, side, port) {
 }
 
 /**
+ * nono's directory of user profiles, the ones `nono profile list` shows under
+ * "User" and a bare name like `my-opencode-server` refers to.
+ * @param {NodeJS.ProcessEnv} [env]
+ * @returns {string}
+ */
+export function nonoUserProfilesDir(env = process.env) {
+  return path.join(env.XDG_CONFIG_HOME || path.join(env.HOME || homedir(), ".config"), "nono", "profiles");
+}
+
+/**
+ * Where a profile reference comes from: a file shipped in the plugin's
+ * `profiles/`, a profile file of your own, a nono user profile (by name, with
+ * its file), or a profile built into nono or one of its packages.
+ * @param {string|null|undefined} ref
+ * @param {{pluginRoot?: string|null, userProfilesDir?: string}} [options]
+ * @returns {{kind: "none"|"shipped"|"file"|"user"|"nono", text: string, file: string|null}}
+ */
+export function profileSource(ref, { pluginRoot = null, userProfilesDir = nonoUserProfilesDir() } = {}) {
+  if (!ref) return { kind: "none", text: "none", file: null };
+  if (path.isAbsolute(ref) || ref.endsWith(".json")) {
+    if (pluginRoot && path.dirname(path.resolve(ref)) === path.join(path.resolve(pluginRoot), "profiles")) {
+      return { kind: "shipped", text: "shipped with the plugin", file: ref };
+    }
+    return { kind: "file", text: "your profile file", file: ref };
+  }
+  const user = path.join(userProfilesDir, `${ref}.json`);
+  if (existsSync(user)) return { kind: "user", text: "nono user profile", file: user };
+  return { kind: "nono", text: "built into nono or a nono package", file: null };
+}
+
+/**
+ * The network line of the profiles view.
+ * @param {ReturnType<typeof summarizeProfile>} summary
+ * @param {"client"|"server"|"sandbox"} side
+ */
+function networkDetail(summary, side) {
+  const localhost = summary.loopback ? "; LOCALHOST REACHABLE" : "";
+  if (summary.egress === "blocked") return side === "client" ? "blocked; the plugin opens its server's port only" : "blocked";
+  if (summary.egress === "allowlist") {
+    const hosts = summary.allowDomains;
+    return `nono proxy to ${hosts.length} host${hosts.length === 1 ? "" : "s"}${hosts.length ? `: ${hosts.join(", ")}` : ""}${localhost}`;
+  }
+  return "OPEN egress, direct connects; LOCALHOST REACHABLE";
+}
+
+/**
+ * The lines of the profiles view: for each sandbox of the selected agent (or
+ * of the next launch when nothing is mapped) which profile it runs under,
+ * where that profile lives and what it allows; then what the next launch uses
+ * and where to change it.
+ * @param {Record<string, any>} view
+ * @param {Record<string, any>|undefined} row
+ * @param {{innerWidth: number, color: boolean, home: string}} options
+ * @returns {string[]}
+ */
+function profileLines(view, row, { innerWidth, color, home }) {
+  const out = [];
+  const info = view.profiles ?? {};
+  const sourceOptions = { pluginRoot: info.pluginRoot ?? null, ...(info.userProfilesDir ? { userProfilesDir: info.userProfilesDir } : {}) };
+  const configured = view.configured ?? null;
+  const field = (label, value, ...style) => out.push(`${paint(color, fit(`  ${label}`, 14), "gray")}${paint(color, fit(value, innerWidth - 14), ...style)}`);
+  const heading = (text, style) => out.push(paint(color, fit(text, innerWidth), "bold", style));
+  const sides = row
+    ? (row.entry?.serverProfile
+      ? [["server", row.entry.serverProfile, row.network?.server], ["client", row.entry?.profile, row.network?.client]]
+      : [["sandbox", row.entry?.profile, row.network?.client]])
+    : configured
+      ? (configured.server.ref
+        ? [["server", configured.server.ref, configured.server.summary], ["client", configured.client.ref, configured.client.summary]]
+        : [["sandbox", configured.client.ref, configured.client.summary]])
+      : [];
+  if (sides.length === 0) {
+    out.push(paint(color, fit("No agent selected and the configured profiles are unknown (see config.json).", innerWidth), "gray"));
+  }
+  const roles = {
+    server: ["server sandbox: opencode serve and every tool call", "serverProfile", "magenta"],
+    client: ["client sandbox: the OpenCode TUI in the pane", "profile", "cyan"],
+    sandbox: ["sandbox: the agent", "profile", "cyan"],
+  };
+  for (const [side, ref, summary] of sides) {
+    const [title, key, style] = roles[side];
+    heading(`${title} · config key ${key}`, style);
+    const source = profileSource(ref, sourceOptions);
+    const name = summary?.name ?? (ref ? path.basename(String(ref)).replace(/\.json$/, "") : "-");
+    field("Profile", `${name} · ${source.text}`, "bold");
+    field("File", source.file ? shortPath(source.file, home) : `none on disk; nono profile show ${ref ?? "<name>"}`);
+    if (!summary) {
+      field("Policy", `nono could not resolve ${ref ?? "the profile"}; run doctor`, "red");
+      continue;
+    }
+    field("Extends", summary.extends.join(", ") || "nothing");
+    field("Network", networkDetail(summary, side), ...(summary.loopback ? ["red"] : []));
+    field("Files", `${summary.readWritePaths.length} read-write, ${summary.readOnlyPaths.length} read-only director${summary.readOnlyPaths.length === 1 ? "y" : "ies"}, plus the workspace root (read-write)`);
+    field("Sockets", summary.afUnixMediation === "pathname" ? "AF_UNIX pathname mediation: Herdr, D-Bus, SSH and GPG agents blocked" : `AF_UNIX mediation ${summary.afUnixMediation}: host sockets reachable`, ...(summary.afUnixMediation === "pathname" ? [] : ["red"]));
+    if (summary.description) field("About", summary.description, "gray");
+  }
+  heading("where to change them", "yellow");
+  if (row && configured) {
+    const same = configured.client.ref === (row.entry?.profile ?? null) && configured.server.ref === (row.entry?.serverProfile ?? null);
+    const names = [configured.server.ref ? `server ${path.basename(configured.server.ref).replace(/\.json$/, "")}` : null, `client ${path.basename(String(configured.client.ref)).replace(/\.json$/, "")}`].filter(Boolean).join(" · ");
+    field("Next launch", same ? `same profiles (${names})` : `${names}; prefix+shift+b after quitting switches`, ...(same ? [] : ["yellow"]));
+  }
+  field("Config", `${info.configFile ? shortPath(info.configFile, home) : "config.json"}, keys "serverProfile" and "profile"`);
+  field("nono", `user profiles in ${shortPath(sourceOptions.userProfilesDir ?? nonoUserProfilesDir(), home)} · nono profile list · nono profile show <name|path>`);
+  return out;
+}
+
+/**
  * Renders the whole screen as `height` lines of exactly `width` visible
  * characters. Pure: everything it shows comes from `view`.
- * @param {{rows: any[], sessionError: string|null, selected?: number, status?: {text: string, kind?: "ok"|"error"|"info"}|null, prompt?: string|null}} view
+ * With `mode: "profiles"` the area below the agents table shows the profiles
+ * view instead of the sandboxes and details.
+ * @param {{rows: any[], sessionError: string|null, selected?: number, status?: {text: string, kind?: "ok"|"error"|"info"}|null, prompt?: string|null, mode?: "sandboxes"|"profiles", configured?: any, profiles?: {pluginRoot?: string|null, configFile?: string|null, userProfilesDir?: string}}} view
  * @param {{width?: number, height?: number, color?: boolean, at?: Date, intervalMs?: number, home?: string}} [options]
  * @returns {string[]}
  */
@@ -419,8 +538,19 @@ export function renderTui(view, { width = 100, height = 30, color = true, at = n
   }
   lines.push(table.bottom());
 
+  const showProfiles = view.mode === "profiles";
+  if (showProfiles) {
+    const panel = box(width, { text: row ? `Profiles · agent ${row.paneId}` : "Profiles · next launch" }, ["yellow"]);
+    const body = profileLines(view, row, { innerWidth: panel.innerWidth, color, home });
+    const room = Math.max(1, height - footerLines - lines.length - 2 - (view.sessionError ? 1 : 0));
+    const shown = body.length <= room ? body : [...body.slice(0, room - 1), paint(color, fit(`… ${body.length - room + 1} more lines; enlarge the pane`, panel.innerWidth), "gray")];
+    lines.push(panel.top());
+    for (const line of shown) lines.push(panel.row(line));
+    lines.push(panel.bottom());
+  }
+
   // The selected agent's two sandboxes, side by side, with their processes.
-  if (row) {
+  if (row && !showProfiles) {
     const entry = row.entry ?? {};
     const port = entry.port ?? null;
     const hasServer = Boolean(entry.serverProfile) || row.trees?.server?.length > 0;
@@ -471,7 +601,7 @@ export function renderTui(view, { width = 100, height = 30, color = true, at = n
   }
 
   // Details of the selected mapping.
-  if (row && detailHeight > 0) {
+  if (row && detailHeight > 0 && !showProfiles) {
     const details = box(width, { text: "Details" });
     lines.push(details.top());
     const entry = row.entry ?? {};
@@ -514,9 +644,16 @@ export function renderTui(view, { width = 100, height = 30, color = true, at = n
   } else {
     lines.push(paint(color, fit(` refreshes every ${Math.round(intervalMs / 1000)}s`, width), "gray"));
   }
-  const keys = view.prompt
+  let keys = view.prompt
     ? [["y", "confirm"], ["n/esc", "cancel"]]
-    : [["↑↓/jk", "select"], ["v", "verify"], ["x", "stop"], ["p", "prune"], ["r", "refresh"], ["q", "quit"]];
+    : showProfiles
+      ? [["↑↓/jk", "select"], ["i", "sandboxes"], ["r", "refresh"], ["q", "quit"]]
+      : [["↑↓/jk", "select"], ["v", "verify"], ["x", "stop"], ["p", "prune"], ["i", "profiles"], ["r", "refresh"], ["q", "quit"]];
+  // On a narrow screen the least needed hints go first; their keys still work.
+  for (const drop of ["r", "p"]) {
+    if (keys.map(([key, label]) => ` ${key}  ${label}`).join("  ").length < width) break;
+    keys = keys.filter(([key]) => key !== drop);
+  }
   const hint = keys.map(([key, label]) => `${paint(color, ` ${key} `, "inverse")} ${label}`).join("  ");
   const hintPlain = keys.map(([key, label]) => ` ${key}  ${label}`).join("  ");
   lines.push(`${hint}${" ".repeat(Math.max(0, width - hintPlain.length - 1))}`);
@@ -625,13 +762,20 @@ export async function runSandboxesPane(env = process.env, { once = false, interv
   }
   const { nono, herdr } = createOverlayClients({ nonoBin: config.nonoBin, herdrBin: pluginEnv.herdrBin, env });
   const controller = new AbortController();
-  /** @type {{rows: any[], sessionError: string|null, paneIds: string[]|null, selected: number, status: {text: string, kind?: "ok"|"error"|"info"}|null, prompt: string|null}} */
-  const view = { rows: [], sessionError: null, paneIds: null, selected: 0, status: null, prompt: null };
+  /** @type {{rows: any[], sessionError: string|null, paneIds: string[]|null, selected: number, status: {text: string, kind?: "ok"|"error"|"info"}|null, prompt: string|null, mode: "sandboxes"|"profiles", configured: any, profiles: {pluginRoot: string, configFile: string, userProfilesDir: string}}} */
+  const view = { rows: [], sessionError: null, paneIds: null, selected: 0, status: null, prompt: null, mode: "sandboxes", configured: null, profiles: { pluginRoot: pluginEnv.pluginRoot, configFile: configPath(pluginEnv.configDir), userProfilesDir: nonoUserProfilesDir(env) } };
   const profileCache = new Map();
+  let configured = null;
+  try {
+    const agent = resolveAgent(config, { pluginRoot: pluginEnv.pluginRoot });
+    configured = { client: agent.profileRef, server: agent.serverProfileRef };
+  } catch {
+    // An unknown agentKind: the profiles view says the configured profiles are unknown.
+  }
   const refresh = async () => {
     const keep = view.rows[view.selected]?.paneId ?? null;
     try {
-      Object.assign(view, await collectSandboxes({ stateDir: pluginEnv.stateDir, nono, herdr, signal: controller.signal, profileCache }));
+      Object.assign(view, await collectSandboxes({ stateDir: pluginEnv.stateDir, nono, herdr, signal: controller.signal, profileCache, configured }));
     } catch (error) {
       view.status = { text: `could not read the sandboxes: ${errorMessageOf(error)}`, kind: "error" };
     }
@@ -715,6 +859,10 @@ export async function runSandboxesPane(env = process.env, { once = false, interv
         break;
       case "pagedown":
         view.selected = Math.min(Math.max(0, view.rows.length - 1), view.selected + 5);
+        break;
+      case "i":
+        view.mode = view.mode === "profiles" ? "sandboxes" : "profiles";
+        view.status = null;
         break;
       case "r":
         await run("refreshing…", async () => ({ text: "refreshed", kind: "ok" }));

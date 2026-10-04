@@ -161,9 +161,11 @@ export function loopbackDomains(allowDomains) {
  * through nono's proxy and denies direct connects; `blocked` allows none.
  * `loopback` says whether the sandbox can reach services on localhost: with
  * open egress directly, behind the proxy when an allowed domain can resolve to
- * the host (`loopbackDomains` lists those entries).
+ * the host (`loopbackDomains` lists those entries). `readWritePaths` and
+ * `readOnlyPaths` are the profile's directory grants, before the plugin adds
+ * the workspace root.
  * @param {Record<string, any>} profile
- * @returns {{name: string|null, extends: string[], egress: string, allowDomains: string[], loopback: boolean, loopbackDomains: Array<{domain: string, reason: string}>, afUnixMediation: string, workdirAccess: string|null}}
+ * @returns {{name: string|null, description: string|null, extends: string[], egress: string, allowDomains: string[], loopback: boolean, loopbackDomains: Array<{domain: string, reason: string}>, afUnixMediation: string, workdirAccess: string|null, readWritePaths: string[], readOnlyPaths: string[]}}
  */
 export function summarizeProfile(profile) {
   const network = profile.network ?? {};
@@ -177,6 +179,7 @@ export function summarizeProfile(profile) {
   const unsafe = egress === "allowlist" ? loopbackDomains(allowDomains) : [];
   return {
     name: profile.name ?? null,
+    description: typeof profile.description === "string" && profile.description !== "" ? profile.description : null,
     extends: [].concat(profile.extends ?? []),
     egress,
     allowDomains,
@@ -184,6 +187,8 @@ export function summarizeProfile(profile) {
     loopbackDomains: unsafe,
     afUnixMediation: profile.linux?.af_unix_mediation ?? "off",
     workdirAccess: profile.workdir?.access ?? null,
+    readWritePaths: Array.isArray(profile.filesystem?.allow) ? profile.filesystem.allow : [],
+    readOnlyPaths: Array.isArray(profile.filesystem?.read) ? profile.filesystem.read : [],
   };
 }
 

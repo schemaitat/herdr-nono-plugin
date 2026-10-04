@@ -24,7 +24,7 @@ inside them. It refreshes every three seconds.
 │ Verified    confined: 4 processes, server pid 3243022 (7:53:20 AM)                                         │
 └────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
  ✔ verified: confined: 4 processes, server pid 3243022
- ↑↓/jk  select   v  verify   x  stop   p  prune   r  refresh   q  quit
+ ↑↓/jk  select   v  verify   x  stop   p  prune   i  profiles   r  refresh   q  quit
 ```
 
 ## Reading it
@@ -47,6 +47,17 @@ inside them. It refreshes every three seconds.
 A server profile that leaves localhost reachable shows up in the server's
 title (`OPEN egress + localhost`) and in the flow line (`! localhost open`).
 
+## Profiles view
+
+`i` swaps the sandboxes and details for the selected agent's
+[profiles](profiles.md#see-the-active-profiles): for each sandbox the profile's
+name and source (shipped, your file, a nono user profile, built into nono), its
+file, what it extends, its network, its directory grants, its socket mediation
+and its description. Below that: the profiles the next launch uses (they
+differ from a running agent's after a `config.json` change), the `config.json`
+path and nono's user profile directory. With no agent mapped it shows the
+next launch's profiles. `i` goes back.
+
 ## Symbols
 
 | Symbol | Meaning |
@@ -64,5 +75,6 @@ title (`OPEN egress + localhost`) and in the flow line (`! localhost open`).
 | `v` | Verify the selected agent now (`verify-sandbox`) |
 | `x` | Stop the selected agent and its server, after `y/N` |
 | `p` | Forget every stale mapping that runs nothing, after `y/N` |
+| `i` | Toggle the [profiles view](#profiles-view) |
 | `r` | Refresh now |
 | `q`, `ctrl+c` | Close |

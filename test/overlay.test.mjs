@@ -4,9 +4,9 @@ import { EventEmitter } from "node:events";
 import path from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { test } from "node:test";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { collectSandboxes, fit, isStale, parseKeys, renderSandboxes, renderTui, runSandboxesPane, sandboxTree } from "../src/sandboxes-pane-main.mjs";
+import { collectSandboxes, fit, isStale, parseKeys, profileSource, renderSandboxes, renderTui, runSandboxesPane, sandboxTree } from "../src/sandboxes-pane-main.mjs";
 import { ROOT, createFixture, fakeBridgeProcess, mappingFor, writeFakeProc } from "./helpers.mjs";
 
 const NAME = "herdr-opencode-abc123def456";
@@ -88,7 +88,7 @@ test("renderTui draws the agents table, the two sandboxes of the selected agent 
   assert.match(text, /Profiles +client herdr-opencode-client · server herdr-opencode-server/);
   assert.match(text, /Verified +FAILED: Process 7 is not confined/);
   assert.match(text, /✔ pruned 1 mapping/);
-  assert.match(lines.at(-1), /↑↓\/jk +select +v +verify +x +stop +p +prune +r +refresh +q +quit/);
+  assert.match(lines.at(-1), /↑↓\/jk +select +v +verify +x +stop +p +prune +i +profiles +r +refresh +q +quit/);
   const prompt = renderTui({ rows, sessionError: null, selected: 1, prompt: "Forget 1 mapping? [y/N]" }, { width: 110, height: 32, color: false });
   const promptText = prompt.join("\n");
   assert.match(promptText, /\? Forget 1 mapping\? \[y\/N\]/);
@@ -104,6 +104,64 @@ test("renderTui draws the agents table, the two sandboxes of the selected agent 
   const short = renderTui({ rows, sessionError: null, selected: 0 }, { width: 110, height: 20, color: false }).join("\n");
   assert.match(short, /┌─ server/, "on a short screen the sandboxes stay");
   assert.doesNotMatch(short, /┌─ Details/, "and the details panel goes");
+});
+
+test("collectSandboxes summarizes the profiles the next launch uses", async () => {
+  const f = createFixture({ panes: () => ({}) });
+  const nono = {
+    async listSessions() { return []; },
+    async showProfile(ref) { return { name: path.basename(ref, ".json"), description: `about ${ref}`, extends: ["nolabs-ai/opencode"], network: /client/.test(ref) ? { block: true } : { allow_domain: ["api.githubcopilot.com"] }, filesystem: { allow: ["$HOME/.opencode", "$TMPDIR"], read: ["$HOME/.agents"] }, linux: { af_unix_mediation: "pathname" } }; },
+  };
+  const herdr = { async listPaneIds() { return []; } };
+  const data = await collectSandboxes({ stateDir: f.stateDir, nono, herdr, procRoot: path.join(f.root, "no-proc"), configured: { client: "/p/profiles/herdr-opencode-client.json", server: "/p/profiles/herdr-opencode-server.json" } });
+  assert.equal(data.configured.client.summary.egress, "blocked");
+  assert.deepEqual(data.configured.server.summary.allowDomains, ["api.githubcopilot.com"]);
+  assert.deepEqual(data.configured.server.summary.readWritePaths, ["$HOME/.opencode", "$TMPDIR"]);
+  assert.equal(data.configured.server.summary.description, "about /p/profiles/herdr-opencode-server.json");
+  f.cleanup();
+});
+
+test("profileSource tells shipped profiles, profile files, nono user profiles and nono's own apart", () => {
+  const userProfilesDir = mkdtempSync(path.join(tmpdir(), "herdr-nono-profiles-"));
+  writeFileSync(path.join(userProfilesDir, "my-server.json"), "{}");
+  const options = { pluginRoot: "/p", userProfilesDir };
+  assert.equal(profileSource("/p/profiles/herdr-opencode-server.json", options).kind, "shipped");
+  assert.deepEqual(profileSource("/home/u/my.json", options), { kind: "file", text: "your profile file", file: "/home/u/my.json" });
+  assert.deepEqual(profileSource("my-server", options), { kind: "user", text: "nono user profile", file: path.join(userProfilesDir, "my-server.json") });
+  assert.equal(profileSource("node-dev", options).kind, "nono");
+  assert.equal(profileSource(null, options).kind, "none");
+});
+
+test("renderTui shows the profiles view: which profile each sandbox runs, where it lives and what it allows", () => {
+  const rows = SAMPLE_ROWS();
+  const summary = (name, network) => ({ name, description: `${name} policy`, extends: ["nolabs-ai/opencode"], egress: network, allowDomains: network === "allowlist" ? ["api.githubcopilot.com", "github.com"] : [], loopback: false, loopbackDomains: [], afUnixMediation: "pathname", workdirAccess: "readwrite", readWritePaths: ["a", "b"], readOnlyPaths: ["c"] });
+  rows[0].network = { client: summary("herdr-opencode-client", "blocked"), server: summary("herdr-opencode-server", "allowlist") };
+  const configured = { client: { ref: "/p/profiles/herdr-opencode-client.json", summary: rows[0].network.client }, server: { ref: "/home/u/mine.json", summary: rows[0].network.server } };
+  const profiles = { pluginRoot: "/p", configFile: "/home/u/.config/herdr/plugins/nono.sandbox/config.json", userProfilesDir: "/home/u/.config/nono/profiles" };
+  const lines = renderTui({ rows, sessionError: null, selected: 0, mode: "profiles", configured, profiles }, { width: 110, height: 40, color: false, home: "/home/u" });
+  assert.equal(lines.length, 40);
+  assert.ok(lines.every((line) => line.length <= 110));
+  const text = lines.join("\n");
+  assert.match(text, /┌─ Profiles · agent w1:p1 ─/);
+  assert.doesNotMatch(text, /┌─ Details/, "the profiles view replaces the sandboxes and details");
+  assert.match(text, /server sandbox: opencode serve and every tool call · config key serverProfile/);
+  assert.match(text, /Profile +herdr-opencode-server · shipped with the plugin/);
+  assert.match(text, /File +\/p\/profiles\/herdr-opencode-server\.json/);
+  assert.match(text, /Network +nono proxy to 2 hosts: api\.githubcopilot\.com, github\.com/);
+  assert.match(text, /Network +blocked; the plugin opens its server's port only/);
+  assert.match(text, /Files +2 read-write, 1 read-only directory, plus the workspace root/);
+  assert.match(text, /Sockets +AF_UNIX pathname mediation/);
+  assert.match(text, /About +herdr-opencode-server policy/);
+  assert.match(text, /Next launch +server mine · client herdr-opencode-client; prefix\+shift\+b after quitting switches/);
+  assert.match(text, /Config +~\/\.config\/herdr\/plugins\/nono\.sandbox\/config\.json/);
+  assert.match(text, /user profiles in ~\/\.config\/nono\/profiles/);
+  assert.match(lines.at(-1), /i +sandboxes/);
+  const empty = renderTui({ rows: [], sessionError: null, mode: "profiles", configured, profiles }, { width: 80, height: 40, color: false, home: "/home/u" }).join("\n");
+  assert.match(empty, /Profiles · next launch/);
+  assert.match(empty, /Profile +herdr-opencode-server · your profile file/);
+  const narrow = renderTui({ rows, sessionError: null, selected: 0 }, { width: 70, height: 30, color: false });
+  assert.ok(narrow.at(-1).length <= 70, "the key hints fit a narrow screen");
+  assert.match(narrow.at(-1), /i +profiles/, "the profiles key stays when refresh and prune hints go");
 });
 
 test("sandboxTree lists a supervisor's processes depth-first with their confinement", () => {
