@@ -7,6 +7,7 @@ import { BUILTIN_AGENTS } from "../src/agents.mjs";
 import { CONFIG_DEFAULTS } from "../src/config.mjs";
 import { NONO_BIN_ENV, PLUGIN_ID, RESULT_MARKER } from "../src/constants.mjs";
 import { ERROR_KINDS } from "../src/errors.mjs";
+import { loopbackDomains } from "../src/nono.mjs";
 import { ROOT } from "./helpers.mjs";
 
 const manifest = readFileSync(path.join(ROOT, "herdr-plugin.toml"), "utf8");
@@ -74,7 +75,8 @@ test("the shipped profiles extend the OpenCode pack, close the host sockets and 
     assert.deepEqual(profile.filesystem.suppress_save_prompt, ["/"]);
   }
   assert.deepEqual(client.network, { block: true }, "the client reaches nothing but its server's port");
-  assert.deepEqual(server.network, { allow_domain: ["*"] }, "the server reaches the internet through nono's proxy only, so direct localhost connects are denied");
+  assert.deepEqual(server.network, { allow_domain: ["models.opencode.ai", "github.com", "api.github.com", "api.githubcopilot.com", "*.githubcopilot.com"] }, "the server reaches GitHub Copilot and OpenCode's model catalog through nono's proxy, nothing else");
+  assert.deepEqual(loopbackDomains(server.network.allow_domain), [], "no allowed domain can resolve to localhost");
 });
 
 const docsDir = path.join(ROOT, "docs");

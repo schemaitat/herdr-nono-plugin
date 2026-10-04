@@ -9,7 +9,7 @@
  * session exited and exits with the command's code; the escape probe script is
  * answered with FAKE_NONO_PROBE (JSON) instead of being run. `profile show`
  * prints FAKE_NONO_PROFILE_JSON or, by the name of the reference, a blocked
- * (client), proxied (server) or open profile.
+ * (client), provider-allowlist (server) or open profile.
  */
 import { spawn } from "node:child_process";
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
@@ -77,8 +77,9 @@ if (command === "--version") {
   const mode = failureFor("profile");
   if (mode) fail(mode === "not-found" ? "profile" : "generic", ref);
   // Like the shipped profiles: the client's blocks the network, the server's
-  // goes through the proxy with every domain allowed, anything else is open.
-  const network = /client/.test(ref) ? { block: true } : /server/.test(ref) ? { allow_domain: ["*"] } : { block: false, allow_domain: [] };
+  // goes through the proxy to provider hosts only, a "wildcard" one allows
+  // every domain, anything else is open.
+  const network = /wildcard/.test(ref) ? { allow_domain: ["*"] } : /client/.test(ref) ? { block: true } : /server/.test(ref) ? { allow_domain: ["models.opencode.ai", "github.com", "api.github.com", "api.githubcopilot.com", "*.githubcopilot.com"] } : { block: false, allow_domain: [] };
   const profile = process.env.FAKE_NONO_PROFILE_JSON
     ? JSON.parse(process.env.FAKE_NONO_PROFILE_JSON)
     : { name: ref, extends: ["nolabs-ai/opencode"], linux: { af_unix_mediation: "pathname" }, network, workdir: { access: "readwrite" } };
@@ -92,7 +93,7 @@ if (command === "--version") {
   if (inner.join(" ").includes("HERDR_NONO_PROBE")) {
     const probe = process.env.FAKE_NONO_PROBE
       ? JSON.parse(process.env.FAKE_NONO_PROBE)
-      : { herdrSocket: "denied", opencodeServicePort: "denied", systemdUser: "denied", sessionBus: "denied", sshAgent: "absent", gpgAgent: "absent", dockerSocket: "denied", opencodeServicePassword: "absent", sshKeys: "denied", homeDirectory: "denied", env: [], marker: true };
+      : { herdrSocket: "denied", opencodeServicePort: "denied", loopbackCanary: "denied", loopbackViaProxy: "denied", systemdUser: "denied", sessionBus: "denied", sshAgent: "absent", gpgAgent: "absent", dockerSocket: "denied", opencodeServicePassword: "absent", sshKeys: "denied", homeDirectory: "denied", env: [], marker: true };
     process.stdout.write(`HERDR_NONO_PROBE ${JSON.stringify(probe)}\n`);
     process.exit(0);
   }

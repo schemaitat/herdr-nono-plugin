@@ -317,7 +317,7 @@ function shortCommand(argv) {
 
 /**
  * What a profile summary says about a sandbox's network, in a few words.
- * @param {{egress: string, allowDomains: string[]}|null} summary
+ * @param {{egress: string, allowDomains: string[], loopback?: boolean}|null} summary
  * @param {"client"|"server"} side
  * @param {number|null} port
  */
@@ -327,7 +327,7 @@ function networkLabel(summary, side, port) {
   if (summary.egress === "blocked") return side === "client" ? `no network but ${portText}` : `no network, on ${portText}`;
   if (summary.egress === "allowlist") {
     const domains = summary.allowDomains.includes("*") ? "" : ` ${summary.allowDomains.length} host${summary.allowDomains.length === 1 ? "" : "s"}`;
-    return `${side === "server" ? `on ${portText}, ` : ""}proxy egress${domains}`;
+    return `${side === "server" ? `on ${portText}, ` : ""}proxy egress${domains}${summary.loopback ? " + LOCALHOST" : ""}`;
   }
   return `${side === "server" ? `on ${portText}, ` : ""}OPEN egress + localhost`;
 }

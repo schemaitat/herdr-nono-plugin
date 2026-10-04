@@ -47,7 +47,7 @@ tool it runs) and a **client sandbox** (the TUI).
 | --- | --- | --- |
 | Project files | Read-write: the worktree or git repository of the focused pane | Same |
 | Rest of the filesystem | Only what OpenCode needs (its config and state, toolchains, `/tmp`); not your home directory, not `~/.ssh` | Same |
-| Internet | HTTP(S) to any public host, through nono's proxy | None |
+| Internet | HTTP(S) to GitHub Copilot and OpenCode's model catalog only, through nono's proxy | None |
 | Localhost | None, so not the unsandboxed OpenCode service on `:4096`; only its own port for the client | Only its server's port |
 | SSH, databases, UDP | Blocked; use HTTPS git remotes | Blocked |
 | Herdr, systemd, D-Bus, SSH and GPG agents, clipboard | Blocked | Blocked |

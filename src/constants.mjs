@@ -83,11 +83,37 @@ export const SERVER_SESSION_SUFFIX = "-server";
 export const STOP_WAIT_MS = 15_000;
 
 /**
+ * Environment variables `nono run` reads as flags that grant network or
+ * filesystem access beyond the profile. `agentEnv` may not set them either.
+ */
+export const NONO_RUN_ENV_PATTERNS = Object.freeze([
+  /^NONO_ALLOW$/,
+  /^NONO_ALLOW_DOMAIN$/,
+  /^NONO_NETWORK_PROFILE$/,
+  /^NONO_UPSTREAM_PROXY$/,
+  /^NONO_UPSTREAM_BYPASS$/,
+  /^NONO_CAPABILITY_ELEVATION$/,
+  /^NONO_TRUST_OVERRIDE$/,
+  /^NONO_PROFILE$/,
+]);
+
+/**
+ * `nono run` flags that `nonoArgs` may not contain: they open network paths
+ * the profile does not grant (localhost ports, more domains, another proxy) or
+ * grant the current directory. Network access belongs in the server profile,
+ * where `doctor` checks it.
+ */
+export const FORBIDDEN_NONO_ARGS = Object.freeze(["--allow-domain", "--network-profile", "--allow-connect-port", "--open-port", "--listen-port", "--upstream-proxy", "--upstream-bypass", "--allow-net", "--allow-cwd", "--profile"]);
+
+/**
  * Environment variables the bridge never hands to `nono run`. The shipped
  * profiles strip them inside the sandbox as well; removing them before nono
  * starts keeps them out even when a user profile does not.
  * `HERDR_*` names the Herdr control socket, which drives every pane on the
  * host; the rest name sockets of agents and buses that run outside the sandbox.
+ * The `NONO_*` entries are read by `nono run` itself as flags
+ * (`NONO_ALLOW_DOMAIN` is `--allow-domain`) and would widen the profile, for
+ * example to an allowed domain that resolves to localhost.
  */
 export const STRIPPED_ENV_PATTERNS = Object.freeze([
   /^HERDR_/,
@@ -97,6 +123,7 @@ export const STRIPPED_ENV_PATTERNS = Object.freeze([
   /^DBUS_SESSION_BUS_ADDRESS$/,
   /^TMUX$/,
   /^TMUX_PANE$/,
+  ...NONO_RUN_ENV_PATTERNS,
 ]);
 
 /** Lifecycle states a pane mapping moves through. */

@@ -3,13 +3,15 @@
  * sandbox with the profile the agent's tools run under and tries the ways out
  * this plugin knows about (Herdr's control socket, the user's systemd and
  * D-Bus sockets, the SSH and GPG agents, a direct connect to the OpenCode host
- * service's port, secrets in the home directory, leaked environment
- * variables, the host service's password). Each check says what a
+ * service's port, a canary listener on the host's loopback interface reached
+ * directly and through nono's proxy, secrets in the home directory, leaked
+ * environment variables, the host service's password). Each check says what a
  * well-confined agent should see.
  * @module probes
  */
-import { spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { createServer } from "node:net";
 import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import { NONO_CALL_TIMEOUT_MS } from "./constants.mjs";
@@ -47,6 +49,40 @@ function tcp(port) {
     setTimeout(() => { socket.destroy(); done("timeout"); }, 2000);
   });
 }
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+// CONNECT through nono's proxy (HTTP_PROXY carries its address and token) to
+// each name of the canary; the result lists every name the proxy forwarded.
+async function viaProxy(names, port) {
+  const raw = process.env.HTTPS_PROXY || process.env.https_proxy || process.env.HTTP_PROXY || process.env.http_proxy;
+  if (!raw) return "absent";
+  let proxy;
+  try { proxy = new URL(raw); } catch { return "absent"; }
+  const auth = proxy.username ? "Basic " + Buffer.from(decodeURIComponent(proxy.username) + ":" + decodeURIComponent(proxy.password)).toString("base64") : null;
+  const reached = [];
+  for (const name of names) {
+    // nono rate-limits connects in proxy mode; spaced requests stay under it.
+    await sleep(150);
+    const status = await new Promise((resolve) => {
+      let settled = false;
+      let timer = null;
+      const done = (value) => { if (!settled) { settled = true; clearTimeout(timer); resolve(value); } };
+      const socket = net.connect({ host: proxy.hostname, port: Number(proxy.port) || 80 });
+      let buffer = "";
+      socket.on("connect", () => socket.write("CONNECT " + name + ":" + port + " HTTP/1.1\r\nHost: " + name + ":" + port + "\r\n" + (auth ? "Proxy-Authorization: " + auth + "\r\n" : "") + "\r\n"));
+      socket.on("data", (chunk) => {
+        buffer += chunk;
+        const match = buffer.match(/^HTTP\/1\.[01] (\d{3})/);
+        if (match) { socket.destroy(); done(Number(match[1])); }
+      });
+      socket.on("error", (error) => done(error.code || "error"));
+      timer = setTimeout(() => { socket.destroy(); done("timeout"); }, 3000);
+    });
+    if (status === 200) reached.push(name);
+  }
+  return reached.length === 0 ? "denied" : "allowed via " + reached.join(", ");
+}
 function readable(file) {
   try { fs.readFileSync(file).subarray(0, 1); return "allowed"; } catch (error) { return error.code === "ENOENT" ? "absent" : "denied"; }
 }
@@ -60,12 +96,17 @@ function writable(dir) {
 (async () => {
   for (const [name, file] of Object.entries(targets.sockets)) results[name] = await connect(file);
   for (const [name, port] of Object.entries(targets.tcp)) results[name] = await tcp(port);
+  if (targets.canary) {
+    results.loopbackCanary = await tcp(targets.canary.port);
+    results.loopbackViaProxy = await viaProxy(targets.canary.names, targets.canary.port);
+  }
   for (const [name, file] of Object.entries(targets.files)) results[name] = readable(file);
   for (const [name, dir] of Object.entries(targets.dirs)) results[name] = listable(dir);
   for (const [name, dir] of Object.entries(targets.writes)) results[name] = writable(dir);
   results.env = Object.keys(process.env).filter((key) => /^(HERDR_|SSH_AUTH_SOCK$|DBUS_SESSION_BUS_ADDRESS$)/.test(key)).sort();
   results.marker = Boolean(process.env.NONO_CAP_FILE);
-  process.stdout.write("HERDR_NONO_PROBE " + JSON.stringify(results) + "\n");
+  // Exit once reported: pending connect timeouts would hold the sandbox open.
+  process.stdout.write("HERDR_NONO_PROBE " + JSON.stringify(results) + "\n", () => process.exit(0));
 })();
 `;
 
@@ -112,6 +153,8 @@ export function probeTargets(env = process.env) {
 export const PROBE_EXPECTATIONS = Object.freeze({
   herdrSocket: { expect: ["denied", "absent"], severity: "critical", why: "Herdr's control socket can type commands into any pane, outside the sandbox" },
   opencodeServicePort: { expect: ["denied"], severity: "critical", why: "a direct localhost connect reaches the OpenCode host service, which runs tools outside the sandbox" },
+  loopbackCanary: { expect: ["denied"], severity: "critical", why: "a direct connect reaches a listener on the host's 127.0.0.1, so any localhost service, such as the OpenCode host service, is reachable" },
+  loopbackViaProxy: { expect: ["denied", "absent"], severity: "critical", why: "nono's proxy forwards to a listener on the host's loopback interface; an allowed domain (such as \"*\") covers localhost, so the OpenCode host service is reachable" },
   systemdUser: { expect: ["denied", "absent"], severity: "critical", why: "the user's systemd manager can start processes outside the sandbox" },
   sessionBus: { expect: ["denied", "absent"], severity: "critical", why: "the D-Bus session bus can ask systemd to start processes outside the sandbox" },
   dockerSocket: { expect: ["denied", "absent"], severity: "critical", why: "the Docker socket gives root-equivalent access to the host" },
@@ -144,27 +187,81 @@ export function evaluateProbes(results) {
 }
 
 /**
+ * The names a sandbox could use for the host's loopback interface through
+ * nono's proxy: IPv4 and IPv6 forms, the unspecified address, and a public
+ * wildcard DNS name that resolves to 127.0.0.1.
+ */
+export const LOOPBACK_NAMES = Object.freeze(["127.0.0.1", "localhost", "0.0.0.0", "127.1", "[::1]", "127.0.0.1.nip.io"]);
+
+/**
+ * Listens on an ephemeral port of the host's 127.0.0.1 until closed: the
+ * target of the loopback probes. Nothing inside the sandbox should reach it.
+ * @returns {Promise<{port: number, close: () => Promise<void>}>}
+ */
+export async function startCanary() {
+  const server = createServer((socket) => socket.destroy());
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => resolve(undefined));
+  });
+  const { port } = /** @type {import("node:net").AddressInfo} */ (server.address());
+  return { port, close: () => new Promise((resolve) => server.close(() => resolve(undefined))) };
+}
+
+/**
  * Runs the probe inside a throwaway sandbox with the given profile. The
  * probe's environment deliberately keeps HERDR_* and the socket variables, so
- * the result shows whether the profile itself strips them.
+ * the result shows whether the profile itself strips them. A canary listener
+ * on the host's loopback interface runs for the duration; the sandbox tries
+ * it directly and through nono's proxy.
  * @param {{nonoBin: string, profile: string, env?: NodeJS.ProcessEnv, nodeBin?: string, timeoutMs?: number}} input
  */
-export function runProbes({ nonoBin, profile, env = process.env, nodeBin = process.execPath, timeoutMs = NONO_CALL_TIMEOUT_MS }) {
+export async function runProbes({ nonoBin, profile, env = process.env, nodeBin = process.execPath, timeoutMs = NONO_CALL_TIMEOUT_MS }) {
   const workspace = mkdtempSync(path.join(tmpdir(), "herdr-nono-probe-"));
+  const canary = await startCanary();
   try {
-    const targets = probeTargets(env);
+    const targets = { ...probeTargets(env), canary: { port: canary.port, names: LOOPBACK_NAMES } };
     const args = ["run", "--silent", "--profile", profile, "--name", "herdr-nono-probe", "--allow", workspace, "--", nodeBin, "-e", PROBE_SCRIPT, JSON.stringify(targets)];
-    const result = spawnSync(nonoBin, args, { cwd: workspace, encoding: "utf8", env, timeout: timeoutMs, killSignal: "SIGKILL", maxBuffer: 4 * 1024 * 1024 });
-    const output = `${result.stdout ?? ""}${result.stderr ?? ""}`;
+    // Asynchronous, so the canary keeps accepting while the probe runs.
+    const result = await runCaptured(nonoBin, args, { cwd: workspace, env, timeout: timeoutMs });
+    const output = `${result.stdout}${result.stderr}`;
     if (result.error) {
       throw new PluginError("startup", `Could not run the escape probe through nono: ${result.error.message}`, { output });
     }
-    const line = (result.stdout ?? "").split("\n").find((item) => item.startsWith("HERDR_NONO_PROBE "));
+    const line = result.stdout.split("\n").find((item) => item.startsWith("HERDR_NONO_PROBE "));
     if (!line) {
       throw new PluginError("unknown", `The escape probe did not report (nono exit ${result.status}); the profile may not grant ${nodeBin}.`, { output });
     }
     return { targets, checks: evaluateProbes(JSON.parse(line.slice("HERDR_NONO_PROBE ".length))) };
   } finally {
+    await canary.close();
     rmSync(workspace, { recursive: true, force: true });
   }
+}
+
+/**
+ * Runs a command with captured output, killed with SIGKILL after a timeout.
+ * @param {string} bin
+ * @param {string[]} args
+ * @param {{cwd: string, env: NodeJS.ProcessEnv, timeout: number}} options
+ * @returns {Promise<{status: number|null, stdout: string, stderr: string, error: Error|null}>}
+ */
+function runCaptured(bin, args, { cwd, env, timeout }) {
+  return new Promise((resolve) => {
+    const child = spawn(bin, args, { cwd, env, stdio: ["ignore", "pipe", "pipe"] });
+    let stdout = "";
+    let stderr = "";
+    let error = null;
+    child.stdout.setEncoding("utf8").on("data", (chunk) => { stdout += chunk; });
+    child.stderr.setEncoding("utf8").on("data", (chunk) => { stderr += chunk; });
+    const timer = setTimeout(() => {
+      error = new Error(`timed out after ${Math.round(timeout / 1000)}s`);
+      child.kill("SIGKILL");
+    }, timeout);
+    child.once("error", (spawnError) => { error = spawnError; });
+    child.once("close", (status) => {
+      clearTimeout(timer);
+      resolve({ status, stdout, stderr, error });
+    });
+  });
 }

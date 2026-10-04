@@ -322,7 +322,10 @@ export function createLifecycle({ stateDir, config, pluginRoot, nono = createNon
 
   /**
    * Checks the host before a launch: the workspace root exists, the agent
-   * binary is on PATH, and no host service offers a way out (refuse, or warn).
+   * binary is on PATH, and the sandbox that runs the agent's tools cannot
+   * reach localhost (refuse, or warn). Localhost counts whether or not the
+   * OpenCode host service runs right now: plain `opencode` on the host
+   * restarts it at any time, on a port the sandbox can then reach.
    * @param {Record<string, any>} entry
    * @param {Record<string, any>} agent
    * @returns {{hostService: ReturnType<typeof detectOpencodeService>|null, warning: string|null, loopbackOpen: boolean}}
@@ -333,31 +336,48 @@ export function createLifecycle({ stateDir, config, pluginRoot, nono = createNon
       throw new PluginError("config", `The agent command "${agent.command[0]}" was not found on PATH (${env.PATH ?? "unset"}). Install it or set command in a custom agent.`);
     }
     const hostService = hostServiceFor(agent);
-    // The service is only a way out when the sandbox that runs the tools may
-    // open TCP connections directly; behind nono's proxy, localhost is denied.
-    const loopbackOpen = hostService?.running ? toolsReachLoopback(agent) : false;
-    const warning = hostService && loopbackOpen ? hostServiceWarning(hostService) : null;
-    if (warning && config.hostServiceCheck === "refuse") {
-      for (const line of hostServiceRefusal(/** @type {any} */ (hostService), { home: env.HOME || homedir() })) log(line);
-      herdr?.notify?.("nono: agent NOT started", `An unsandboxed OpenCode service runs (pid ${hostService?.pid}). Run "opencode service stop", then reconnect.`);
-      throw new PluginError("unconfined", `Not started: an unsandboxed OpenCode service runs (pid ${hostService?.pid}); hostServiceCheck is "refuse".`);
+    if (!hostService) {
+      return { hostService, warning: null, loopbackOpen: false };
     }
-    return { hostService, warning, loopbackOpen };
+    const loopback = toolsLoopback(agent);
+    if (!loopback.open) {
+      return { hostService, warning: null, loopbackOpen: false };
+    }
+    const running = hostServiceWarning(hostService);
+    const warning = running ?? `The agent's tools can reach localhost: ${loopback.reason}. An OpenCode host service, which plain "opencode" restarts on demand, would let them run commands outside the sandbox. Restrict network.allow_domain in the server profile to your provider's hosts.`;
+    if (config.hostServiceCheck === "refuse") {
+      if (running) {
+        for (const line of hostServiceRefusal(/** @type {any} */ (hostService), { home: env.HOME || homedir() })) log(line);
+        herdr?.notify?.("nono: agent NOT started", `An unsandboxed OpenCode service runs (pid ${hostService.pid}). Run "opencode service stop", then reconnect.`);
+        throw new PluginError("unconfined", `Not started: an unsandboxed OpenCode service runs (pid ${hostService.pid}); hostServiceCheck is "refuse".`);
+      }
+      log(`nono: the agent was NOT started. ${warning}`);
+      herdr?.notify?.("nono: agent NOT started", "The agent's tools could reach localhost; see the pane or run doctor.");
+      throw new PluginError("unconfined", `Not started: the agent's tools can reach localhost (${loopback.reason}); hostServiceCheck is "refuse".`);
+    }
+    return { hostService, warning, loopbackOpen: true };
   }
 
   /**
    * Whether the sandbox that runs the agent's tools (the server sandbox when
-   * there is one) may connect to localhost ports directly. A profile nono
-   * cannot resolve counts as open, so the host-service check fails safe.
+   * there is one) can reach localhost ports: directly with open egress, or
+   * through nono's proxy when an allowed domain can resolve to the host. A
+   * profile nono cannot resolve counts as open, so the check fails safe.
    * @param {{profileRef: string, serverProfileRef?: string|null}} agent
-   * @returns {boolean}
+   * @returns {{open: boolean, reason: string|null}}
    */
-  function toolsReachLoopback(agent) {
+  function toolsLoopback(agent) {
+    const ref = agent.serverProfileRef ?? agent.profileRef;
     try {
-      return summarizeProfile(nono.showProfile(agent.serverProfileRef ?? agent.profileRef)).egress === "open";
+      const summary = summarizeProfile(nono.showProfile(ref));
+      if (!summary.loopback) return { open: false, reason: null };
+      const reason = summary.egress === "open"
+        ? `profile ${ref} lets them connect directly`
+        : `profile ${ref} allows ${summary.loopbackDomains.map((item) => `"${item.domain}", which ${item.reason}`).join("; ")}`;
+      return { open: true, reason };
     } catch (error) {
       log(`could not resolve the profile to check localhost access: ${errorMessageOf(error)}`);
-      return true;
+      return { open: true, reason: `nono could not resolve profile ${ref}` };
     }
   }
 
@@ -829,7 +849,7 @@ export function createLifecycle({ stateDir, config, pluginRoot, nono = createNon
       }
     }
     const hostService = hostServiceFor(agent);
-    const report = verifySession({ supervisorPid, serverSupervisorPid, port: entry.port ?? null, agent, hostService, hostServiceReachable: hostService?.running ? toolsReachLoopback(agent) : false, procRoot });
+    const report = verifySession({ supervisorPid, serverSupervisorPid, port: entry.port ?? null, agent, hostService, hostServiceReachable: hostService?.running ? toolsLoopback(agent).open : false, procRoot });
     updatePaneEntry(stateDir, paneId, { verification: report });
     return { entry: getPaneEntry(stateDir, paneId), agent, report };
   }
@@ -922,5 +942,5 @@ export function createLifecycle({ stateDir, config, pluginRoot, nono = createNon
     return { pruned, kept };
   }
 
-  return { launch, shell, stop, verify, describe, listAll, prune, acknowledgeBridge, releaseBridge, acknowledgeShell, releaseShell, sessionsOf, hostServiceFor, toolsReachLoopback };
+  return { launch, shell, stop, verify, describe, listAll, prune, acknowledgeBridge, releaseBridge, acknowledgeShell, releaseShell, sessionsOf, hostServiceFor, toolsLoopback };
 }
