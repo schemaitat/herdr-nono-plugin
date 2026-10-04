@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Sandboxes overlay: `i` toggles a profiles view showing, for the selected agent (or the next launch),
+  each sandbox's profile, where it comes from (shipped, a file, a nono user profile, built into
+  nono), its file, `extends`, network, directory grants, socket mediation and description, plus
+  the profiles the next launch uses and where to change them.
+- Docs: [Profiles](docs/profiles.md) covers seeing the active profiles, extending a shipped profile
+  with a registered nono user profile, and copying one; the README has a "Check the profiles" step.
+- Docs: [Security](docs/security.md) explains, with a reproducible check, why `herdr pane run` and
+  the other Herdr socket commands cannot reach the host from either sandbox.
+
 - **Security:** the server sandbox no longer allows every domain. nono's proxy forwards to any host
   the allowlist matches, localhost included, so `allow_domain: ["*"]` let the agent's tools reach
   the unsandboxed OpenCode host service on `127.0.0.1:4096`. The shipped server profile (0.3.0)
@@ -16,6 +25,10 @@
 - `nonoArgs` rejects network flags, `--profile` and `--allow-cwd`; `agentEnv` rejects the `NONO_*`
   variables nono reads as flags, and the plugin drops them from the environment it gives nono.
 - `test/integration-egress.test.mjs`: integration tests against the real nono (skipped without it).
+- `test/integration-sandbox.test.mjs`: real-nono tests for the rest of the confinement: host Unix
+  sockets and `herdr pane run`, leaked variables, `doctor`'s probe for both profiles, home
+  directory writes, and the client/server port join, each with a control that removes the
+  protection.
 
 - Documentation site on GitHub Pages (MkDocs Material) with the page index in a left sidebar:
   eleven short pages, with dedicated pages for key bindings, the sandboxes overlay, changing the

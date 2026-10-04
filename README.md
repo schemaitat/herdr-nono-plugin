@@ -37,7 +37,21 @@ Press **`prefix+shift+o`** to see the agent's client and server sandboxes and
 every process running in them. After quitting OpenCode, **`prefix+shift+b`**
 resumes the conversation.
 
-### 3. What the sandbox allows by default
+### 3. Check the profiles
+
+The sandbox policy lives in two nono profiles, one per sandbox. To see which
+ones are active, where their files are and what they allow:
+
+- In Herdr: **`prefix+shift+o`**, then **`i`** for the profiles view.
+- `doctor` prints the plugin root (the shipped profiles are in its
+  `profiles/`), the config directory and one line per resolved profile.
+- `nono profile list` lists every profile nono knows by name, user profiles
+  in `~/.config/nono/profiles/`; `nono profile show <name|path>` prints one
+  fully resolved.
+
+To change or extend them, see [Profiles](docs/profiles.md).
+
+### 4. What the sandbox allows by default
 
 OpenCode runs every tool call in its server, not in the TUI, so each agent
 gets two sandboxes: a **server sandbox** (OpenCode's private server and every
@@ -58,12 +72,35 @@ either check fails, it stops the agent. To change these defaults, see
 [Profiles](docs/profiles.md); for what the sandbox does not cover (your
 workspace, shared OpenCode config), see [Security](docs/security.md).
 
+#### Why sockets are blocked
+
+Herdr, systemd, D-Bus, the SSH and GPG agents and Docker all take requests
+over a Unix socket, a file such as `~/.config/herdr/herdr.sock`. A process
+that can connect to one can ask that service to act for it, outside the
+sandbox: through Herdr's socket, `herdr pane run <pane> <command>` runs any
+command in a real, unsandboxed pane.
+
+File permissions alone cannot stop this. nono grants directories, and the
+sandbox may write `/tmp` and your workspace, so it could reach any socket in
+them. Both shipped profiles therefore set
+`"linux": { "af_unix_mediation": "pathname" }`. With it, nono's supervisor,
+which runs outside the sandbox, checks every `connect()` and `bind()` on a
+Unix socket and refuses each one the profile does not list under
+`filesystem.unix_socket`. The socket file stays visible, but connecting fails
+with `Operation not permitted`, so `herdr pane run` fails before Herdr
+receives anything. Without the setting, the same command reaches Herdr.
+
+Keep this setting in every profile you write. To let the agent use one
+socket, list it under `filesystem.unix_socket` instead of removing the
+setting. `doctor` and `test/integration-sandbox.test.mjs` check it; details in
+[Security](docs/security.md#why-herdr-pane-run-cannot-reach-the-host).
+
 ## Key bindings
 
 | Chord | Action | Does |
 | --- | --- | --- |
 | `prefix+shift+a` | `start-agent` | Start OpenCode in a new pane, server and client sandboxed |
-| `prefix+shift+o` | `sandboxes` | Open the [sandboxes overlay](docs/overlay.md): every agent, its client and server sandbox, their processes |
+| `prefix+shift+o` | `sandboxes` | Open the [sandboxes overlay](docs/overlay.md): every agent, its client and server sandbox, their processes; `i` shows their profiles |
 | `prefix+shift+b` | `reconnect` | Resume the conversation in fresh sandboxes |
 | `prefix+shift+s` | `open-shell` | Open a shell under the server's policy, the one the tools run under |
 
@@ -71,7 +108,7 @@ workspace, shared OpenCode config), see [Security](docs/security.md).
 
 - [Getting started](docs/getting-started.md) · [Key bindings](docs/key-bindings.md) ·
   [Sandboxes overlay](docs/overlay.md) · [Working with agents](docs/agents.md)
-- [Profiles](docs/profiles.md): change what the server and the client may touch
+- [Profiles](docs/profiles.md): see the active profiles, change them, or extend them with your own
 - [Security](docs/security.md): what the sandboxes stop for OpenCode, and what they do not
 - [Configuration](docs/configuration.md) · [Actions and scripting](docs/actions.md) ·
   [Troubleshooting](docs/troubleshooting.md)
