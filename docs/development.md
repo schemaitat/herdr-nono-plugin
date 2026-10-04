@@ -31,14 +31,17 @@ What the fakes cannot show. Use a throwaway repository and
 `nonorun() { sh <plugin dir>/scripts/run-action.sh "$@"; }`.
 
 1. `herdr plugin action list --plugin nono.sandbox` lists twelve actions.
-2. `nonorun doctor`: client egress `blocked`, server `allowlist [*]`, every
-   probe `ok`. With `"serverProfile": "nolabs-ai/opencode"` it must fail with
-   `unconfined`.
+2. `nonorun doctor`: client egress `blocked`, server `allowlist [...]` with
+   the Copilot hosts and `localhost unreachable`, every probe `ok`
+   (`loopbackViaProxy: denied`). With `"serverProfile": "nolabs-ai/opencode"`,
+   or a copy of the server profile with `"*"`, it must fail with `unconfined`.
 3. `nonorun install-keybindings`: four bindings, then `already bound`.
 4. `prefix+shift+a`: the TUI starts; `nonorun info` shows `running` and a
    passing verification; `nono ps` lists `<session>` and `<session>-server`.
-5. Ask the agent to `curl` `127.0.0.1:4096` (`000`) and GitHub (`200`) and
-   run `herdr pane list` (fails), then `sleep 20`. Meanwhile
+5. Ask the agent to `curl` `127.0.0.1:4096` (`000`), the same through the
+   proxy, `curl -x "$HTTPS_PROXY" --noproxy '' http://127.0.0.1:4096` (`403`),
+   `https://api.githubcopilot.com` (any status: it got through) and
+   `https://www.wikipedia.org` (`000`: the proxy refuses it), and to run `herdr pane list` (fails), then `sleep 20`. Meanwhile
    `nonorun verify-sandbox` lists the tools as confined.
 6. `prefix+shift+o`: both boxes, tools under the server; `v`, `x`, `p` work.
 7. `nonorun stop` takes the server down too; `prefix+shift+b` resumes;

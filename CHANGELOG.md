@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- **Security:** the server sandbox no longer allows every domain. nono's proxy forwards to any host
+  the allowlist matches, localhost included, so `allow_domain: ["*"]` let the agent's tools reach
+  the unsandboxed OpenCode host service on `127.0.0.1:4096`. The shipped server profile (0.3.0)
+  now allows GitHub Copilot (`github.com`, `api.github.com`, `api.githubcopilot.com`,
+  `*.githubcopilot.com`) and `models.opencode.ai` only.
+- `start-agent` and `reconnect` refuse a server profile whose allowlist covers localhost (`"*"`,
+  `localhost`, IP addresses, single-label and `.local`/`.internal` names, wildcard DNS services
+  such as `nip.io`) even while no host service runs; `doctor` fails on them, and the overlay marks
+  them `+ LOCALHOST`.
+- `doctor`'s escape probe listens on the host's `127.0.0.1` and tries that port directly and through
+  nono's proxy under six loopback names (`loopbackCanary`, `loopbackViaProxy`).
+- `nonoArgs` rejects network flags, `--profile` and `--allow-cwd`; `agentEnv` rejects the `NONO_*`
+  variables nono reads as flags, and the plugin drops them from the environment it gives nono.
+- `test/integration-egress.test.mjs`: integration tests against the real nono (skipped without it).
+
 - Documentation site on GitHub Pages (MkDocs Material) with the page index in a left sidebar:
   eleven short pages, with dedicated pages for key bindings, the sandboxes overlay, changing the
   server and client profiles, and OpenCode's security model. The README links the site first and

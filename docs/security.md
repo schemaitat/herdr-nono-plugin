@@ -24,13 +24,13 @@ flowchart LR
     subgraph client["client sandbox: network blocked"]
       CLIENT["opencode --server http://127.0.0.1:P<br/>(TUI)"]
     end
-    subgraph server["server sandbox: egress via nono proxy"]
+    subgraph server["server sandbox: provider hosts via nono proxy"]
       SERVER["opencode serve --port P"] --> TOOLS["tools: bash, edits, ..."]
     end
     SVC["OpenCode host service<br/>127.0.0.1:4096 (unsandboxed)"]
     CLIENT -->|"port P + password"| SERVER
-    SERVER --> PROXY["nono proxy"] --> NET(("internet"))
-    TOOLS -. "denied" .-> SVC
+    SERVER --> PROXY["nono proxy"] --> NET(("GitHub Copilot"))
+    TOOLS -. "denied, directly and via the proxy" .-> SVC
 ```
 
 ## What each sandbox can reach
@@ -38,7 +38,7 @@ flowchart LR
 | | Server sandbox (server + tools) | Client sandbox (TUI) |
 | --- | --- | --- |
 | Files | The workspace root read-write, plus what the `nolabs-ai/opencode` pack grants (OpenCode's state and config, toolchains, `/tmp`) | Same |
-| Internet | HTTP(S) through nono's proxy, any public host | None |
+| Internet | HTTP(S) through nono's proxy to the LLM provider's hosts (GitHub Copilot) and OpenCode's model catalog; every other host gets `403` | None |
 | Localhost | Nothing, except accepting its client on `P`. The host service on `4096` is unreachable, directly and through the proxy | Only the server on `P` |
 | SSH, databases, UDP | Denied (direct TCP and UDP are blocked) | Denied |
 | Herdr's control socket, systemd, D-Bus, SSH and GPG agents, X11/Wayland | Denied | Denied |
@@ -59,11 +59,18 @@ settings behind each row.
   (`onVerificationFailure: "stop"`). The result shows in the
   [overlay](overlay.md) and `info`.
 - **On demand**: `verify-sandbox`, or `v` in the overlay, while a tool runs.
+- **Before every launch** the plugin resolves the server profile with
+  `nono profile show` and refuses to start (`unconfined`) when an allowed
+  domain can reach localhost ([below](#why-egress-is-an-allowlist)), whether or
+  not the host service runs at that moment.
 - **`doctor`** starts a throwaway sandbox with the server profile and tries to
   reach Herdr's socket, systemd, D-Bus, Docker, the SSH and GPG agents,
-  `~/.ssh`, your home directory and the host service port. A critical success
-  (Herdr, systemd, D-Bus, Docker, the host service) fails `doctor` with
-  `unconfined`.
+  `~/.ssh`, your home directory and the host service port. It also listens on
+  a random port of the host's `127.0.0.1` and tries that port directly and
+  through nono's proxy as `127.0.0.1`, `localhost`, `0.0.0.0`, `127.1`,
+  `[::1]` and `127.0.0.1.nip.io` (`loopbackCanary`, `loopbackViaProxy`). A
+  critical success (Herdr, systemd, D-Bus, Docker, localhost) fails `doctor`
+  with `unconfined`.
 
 The checks run outside the sandbox, so the agent cannot fake them.
 
@@ -76,7 +83,8 @@ inside a directory OpenCode must be able to write, and nono cannot hide one
 file in a granted directory. The agent can read it, but with the shipped
 server profile it cannot reach the port, so the password is useless. With a
 server profile that opens localhost, the plugin refuses to start agents while
-the service runs (`hostServiceCheck: "refuse"`), and `doctor` fails.
+the service runs, or while it could start (`hostServiceCheck: "refuse"`), and
+`doctor` fails.
 
 ### Shared OpenCode config and state
 
@@ -90,10 +98,42 @@ Review changes there before running OpenCode outside the plugin.
 The agent writes your checkout, including `.git/hooks`, build scripts and CI
 files. Anything you run from it on the host afterwards runs unconfined.
 
-### Egress
+### Egress to the allowed hosts
 
-Every public host is reachable through the proxy. To narrow it, set a domain
-list in the server profile ([Profiles](profiles.md#common-changes)).
+The agent can send anything to the allowed hosts, your workspace included.
+`github.com` and `api.github.com` serve more than Copilot (gists, issues, any
+repository your token can write), so the allowlist limits where data can go
+but does not stop exfiltration to GitHub.
+
+## Why egress is an allowlist
+
+In proxy mode nono denies direct connects, but its proxy forwards to **any
+host the allowlist matches, localhost included**. With `allow_domain: ["*"]`,
+the shipped value up to 0.1.0, a sandboxed process reached the host service on
+`127.0.0.1:4096`, and any other loopback port, by sending
+`CONNECT 127.0.0.1:4096` to the proxy. OpenCode's host service usually runs
+(plain `opencode` restarts it), so the plugin cannot rely on it being stopped.
+
+The proxy also does not check what an allowed name resolves to. Allowing
+`localhost`, an IP address, a single-label host name, a `.local` or
+`.internal` name, or a wildcard DNS name such as `127.0.0.1.nip.io` or
+`*.localtest.me` opens localhost just like `"*"`. So:
+
+- the shipped server profile allows only GitHub Copilot's hosts and OpenCode's
+  model catalog ([Profiles](profiles.md#allowed-hosts));
+- the plugin refuses to launch when the server profile allows any of the
+  entries above (`hostServiceCheck: "refuse"`), `doctor` fails on them, and the
+  overlay shows `+ LOCALHOST`;
+- `nonoArgs` may not add network flags (`--allow-domain`, `--open-port`, ...)
+  and the plugin drops the `NONO_*` variables nono reads as flags, such as
+  `NONO_ALLOW_DOMAIN`, before it runs nono.
+
+The remaining assumption: an allowed name never resolves to the host. That
+holds for the providers' own domains; do not allow a wildcard under a domain
+whose DNS records other people control.
+
+`test/integration-egress.test.mjs` checks all of this against the real nono
+(skipped when nono or the pack is missing).
 
 ## Known limitations
 

@@ -5,6 +5,7 @@
  * @module nono
  */
 import { spawnSync } from "node:child_process";
+import { isIP } from "node:net";
 import { NONO_CALL_TIMEOUT_ENV, NONO_CALL_TIMEOUT_MS } from "./constants.mjs";
 import { PluginError } from "./errors.mjs";
 
@@ -86,12 +87,83 @@ export function buildRunArgs({ profile, sessionName, workspaceRoot, allowPaths =
 }
 
 /**
+ * Public wildcard DNS services whose names resolve to any address written in
+ * them, including 127.0.0.1 (`127.0.0.1.nip.io`, `a.localtest.me`).
+ */
+export const WILDCARD_DNS_DOMAINS = Object.freeze(["nip.io", "sslip.io", "xip.io", "localtest.me", "lvh.me", "vcap.me", "lacolhost.com", "localho.st", "traefik.me", "fuf.me", "localhost.direct"]);
+
+/** Name suffixes that resolve on the local network or the host itself. */
+const LOCAL_SUFFIXES = Object.freeze(["localhost", "localdomain", "local", "internal", "lan", "home.arpa", "home", "corp"]);
+
+/**
+ * The host name of one `allow_domain` entry: a hostname, a `*.` wildcard, or
+ * a URL with a path glob (`https://github.com/org/**`).
+ * @param {string} entry
+ * @returns {string}
+ */
+export function allowDomainHost(entry) {
+  let host = String(entry).trim().toLowerCase();
+  if (host.includes("://")) {
+    try {
+      host = new URL(host.replace("://*.", "://wildcard-placeholder.")).hostname.replace(/^wildcard-placeholder\./, "*.");
+    } catch {
+      host = host.split("://")[1] ?? host;
+    }
+  }
+  host = host.split("/")[0];
+  if (host.startsWith("[")) return host.slice(1, host.indexOf("]") === -1 ? undefined : host.indexOf("]"));
+  if ((host.match(/:/g) ?? []).length === 1) host = host.split(":")[0];
+  return host.replace(/\.$/, "");
+}
+
+/**
+ * Why an `allow_domain` entry can reach services on the host's loopback
+ * interface through nono's proxy, or null when it cannot. nono's proxy
+ * resolves an allowed name and connects to whatever address it gets, and does
+ * not filter loopback or private addresses, so a name that resolves to the
+ * host is as good as allowing 127.0.0.1. An entry is unsafe when it is a
+ * catch-all wildcard, an IP address, a loopback or local-network name, a
+ * single-label name (`/etc/hosts` often maps the host name to 127.0.1.1), or
+ * a name under a wildcard DNS service.
+ * @param {string} entry
+ * @returns {string|null}
+ */
+export function loopbackReason(entry) {
+  const host = allowDomainHost(entry);
+  if (host === "" || host === "*") return "allows every host, including localhost";
+  // Shorthand forms such as 127.1 or 0x7f.1 are IP addresses to the resolver.
+  if (isIP(host) !== 0 || /^(0x[0-9a-f]+|\d+)(\.(0x[0-9a-f]+|\d+))*$/.test(host)) return "is an IP address, which may be the host itself";
+  if (host.includes("*") && !/^\*\.[^*]+$/.test(host)) return "is a wildcard nono's proxy may match against localhost";
+  const name = host.replace(/^\*\./, "");
+  if (!name.includes(".")) return host.startsWith("*.") ? "covers a whole top-level domain, including names that resolve to localhost" : "is a single-label name, which can resolve to the host itself";
+  if (LOCAL_SUFFIXES.some((suffix) => name === suffix || name.endsWith(`.${suffix}`)) || name.startsWith("localhost.")) return "resolves on the host or the local network";
+  if (WILDCARD_DNS_DOMAINS.some((domain) => name === domain || name.endsWith(`.${domain}`))) return "is a wildcard DNS service whose names resolve to 127.0.0.1";
+  return null;
+}
+
+/**
+ * The `allow_domain` entries that let a sandbox behind nono's proxy reach
+ * localhost, each with the reason.
+ * @param {string[]} allowDomains
+ * @returns {Array<{domain: string, reason: string}>}
+ */
+export function loopbackDomains(allowDomains) {
+  return allowDomains.flatMap((domain) => {
+    const reason = loopbackReason(domain);
+    return reason ? [{ domain, reason }] : [];
+  });
+}
+
+/**
  * A short description of a resolved nono profile (`nono profile show --json`).
  * `egress` is `open` when the sandbox may open TCP connections directly, which
  * includes connections to services on localhost; `allowlist` routes egress
  * through nono's proxy and denies direct connects; `blocked` allows none.
+ * `loopback` says whether the sandbox can reach services on localhost: with
+ * open egress directly, behind the proxy when an allowed domain can resolve to
+ * the host (`loopbackDomains` lists those entries).
  * @param {Record<string, any>} profile
- * @returns {{name: string|null, extends: string[], egress: string, allowDomains: string[], afUnixMediation: string, workdirAccess: string|null}}
+ * @returns {{name: string|null, extends: string[], egress: string, allowDomains: string[], loopback: boolean, loopbackDomains: Array<{domain: string, reason: string}>, afUnixMediation: string, workdirAccess: string|null}}
  */
 export function summarizeProfile(profile) {
   const network = profile.network ?? {};
@@ -102,11 +174,14 @@ export function summarizeProfile(profile) {
   } else if (allowDomains.length > 0 || network.network_profile) {
     egress = "allowlist";
   }
+  const unsafe = egress === "allowlist" ? loopbackDomains(allowDomains) : [];
   return {
     name: profile.name ?? null,
     extends: [].concat(profile.extends ?? []),
     egress,
     allowDomains,
+    loopback: egress === "open" || unsafe.length > 0,
+    loopbackDomains: unsafe,
     afUnixMediation: profile.linux?.af_unix_mediation ?? "off",
     workdirAccess: profile.workdir?.access ?? null,
   };

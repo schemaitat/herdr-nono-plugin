@@ -54,24 +54,44 @@ The network mode of each side is what joins client and server, so keep it:
 
 | Profile | Network | The plugin adds | Result |
 | --- | --- | --- | --- |
-| Server | `allow_domain: [...]` (proxy mode) | `--listen-port <port>` | Accepts its client on `<port>`; egress only through nono's proxy; no direct TCP, no localhost, no UDP |
+| Server | `allow_domain: [...]` (proxy mode) | `--listen-port <port>` | Accepts its client on `<port>`; egress only through nono's proxy to the allowed hosts; no direct TCP, no localhost, no UDP |
 | Client | `block: true` | `--open-port <port>` | Reaches its server's port, nothing else |
 
 nono honours `--listen-port` only in proxy mode and `--open-port` only in
 blocked mode, so another network mode breaks the connection between client
-and server. A server profile with open egress also makes localhost reachable;
-the plugin then refuses to start while the OpenCode host service runs (see
-[Security](security.md#the-opencode-host-service)).
+and server. A server profile with open egress, or an allowlist that covers
+localhost, makes the OpenCode host service reachable; the plugin then refuses
+to start (see [Security](security.md#why-egress-is-an-allowlist)).
+
+## Allowed hosts
+
+The shipped server profile allows one provider, GitHub Copilot:
+
+| Host | Used for |
+| --- | --- |
+| `api.githubcopilot.com`, `*.githubcopilot.com` | Chat and model requests (`api.individual.`, `api.business.`, `api.enterprise.` per plan) |
+| `api.github.com` | Exchanging the GitHub login for a Copilot endpoint (`/copilot_internal/user`) |
+| `github.com` | The device login (`/login/device/code`) when you connect Copilot from the TUI |
+| `models.opencode.ai` | OpenCode's model catalog |
+
+Log in once on the host (`opencode auth login`, provider GitHub Copilot); the
+sandbox reads the stored login from OpenCode's data directory.
 
 ## Common changes
 
-**Allow only some domains.** In the server profile replace `"*"` in
-`network.allow_domain`. OpenCode itself needs `opencode.ai`,
-`models.opencode.ai` and your provider's API host:
+**Allow another provider or host.** Add its API host to
+`network.allow_domain` in a copy of the server profile, for example
+`api.anthropic.com` for Anthropic, `opencode.ai` for OpenCode Zen, or
+`registry.npmjs.org` for `npm install`:
 
 ```json
-"network": { "allow_domain": ["opencode.ai", "models.opencode.ai", "api.anthropic.com", "github.com", "registry.npmjs.org"] }
+"network": { "allow_domain": ["models.opencode.ai", "github.com", "api.github.com", "api.githubcopilot.com", "*.githubcopilot.com", "api.anthropic.com"] }
 ```
+
+Never add `"*"`, `localhost`, an IP address, a single-label name, a `.local`
+or `.internal` name, or a wildcard DNS service such as `nip.io`: nono's proxy
+connects to whatever an allowed name resolves to, so each of them opens
+localhost and the plugin refuses to start.
 
 **Grant another directory** without a custom profile, in `config.json`:
 
@@ -94,4 +114,8 @@ sandbox.
 On top of the profile: `--allow <workspace root>` (the worktree checkout, the
 workspace directory, or the git repository of the focused pane; never your
 home directory or `/`, never `--allow-cwd`), `allowPaths`, `readPaths`,
-`nonoArgs`, and the port flags above.
+`nonoArgs`, and the port flags above. `nonoArgs` cannot carry network flags
+(`--allow-domain`, `--network-profile`, `--open-port`, `--listen-port`,
+`--allow-connect-port`, `--upstream-proxy`, `--upstream-bypass`), `--profile`
+or `--allow-cwd`; network access belongs in the profile, where `doctor`
+checks it.

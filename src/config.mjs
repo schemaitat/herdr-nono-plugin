@@ -5,7 +5,7 @@
  */
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { CONFIG_FILE, NONO_BIN_ENV } from "./constants.mjs";
+import { CONFIG_FILE, FORBIDDEN_NONO_ARGS, NONO_BIN_ENV, NONO_RUN_ENV_PATTERNS } from "./constants.mjs";
 import { PluginError } from "./errors.mjs";
 
 /** Directions accepted for the agent pane split. */
@@ -126,10 +126,14 @@ export function validateConfig(raw) {
     if (!isStringArray(config[key]) || !config[key].every((item) => path.isAbsolute(item))) fail(key, "must be an array of absolute paths");
   }
   if (!isStringArray(config.agentEnv) || !config.agentEnv.every((item) => ENV_ENTRY.test(item))) fail("agentEnv", "must be an array of KEY=VALUE strings");
+  const nonoEnv = config.agentEnv.map((item) => item.slice(0, item.indexOf("="))).filter((key) => NONO_RUN_ENV_PATTERNS.some((pattern) => pattern.test(key)));
+  if (nonoEnv.length > 0) fail("agentEnv", `must not set ${nonoEnv.join(", ")}: nono reads it as a flag that widens the profile`);
   for (const key of ["profile", "serverProfile", "nonoBin"]) {
     if (config[key] !== null && (typeof config[key] !== "string" || config[key] === "")) fail(key, "must be a non-empty string or null");
   }
   if (config.nonoArgs.includes("--")) fail("nonoArgs", "must not contain \"--\"; the plugin adds it before the agent command");
+  const forbidden = config.nonoArgs.filter((arg) => FORBIDDEN_NONO_ARGS.includes(arg.split("=", 1)[0]));
+  if (forbidden.length > 0) fail("nonoArgs", `must not contain ${forbidden.join(", ")}; network access and the profile belong in the profile files, where doctor checks them`);
   for (const key of ["silent", "reportAgentStatus", "cleanupOnWorktreeRemoved", "verifyAfterStart"]) {
     if (typeof config[key] !== "boolean") fail(key, "must be true or false");
   }

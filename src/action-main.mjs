@@ -335,7 +335,7 @@ export function parseKeybindingReport(text) {
 }
 
 const ACTIONS = {
-  doctor(deps) {
+  async doctor(deps) {
     const version = deps.nono.version();
     const versionWarning = nonoVersionWarning(version.version);
     const agent = resolveAgent(deps.config, { pluginRoot: deps.pluginEnv.pluginRoot });
@@ -360,14 +360,15 @@ const ACTIONS = {
     }
     if (serverProfile && profile.egress !== "blocked") warnings.push(`The client profile ${profile.ref} does not block the network; the client only needs its server's port.`);
     if (tools.egress === "open") warnings.push(`Profile ${tools.ref}, which the agent's tools run under, lets them connect to localhost services directly.`);
+    for (const item of tools.loopbackDomains) warnings.push(`Profile ${tools.ref}, which the agent's tools run under, allows "${item.domain}", which ${item.reason}; nono's proxy then forwards to localhost services.`);
     const hostService = agent.hostService === "opencode" ? detectOpencodeService({ env: deps.env }) : null;
-    const serviceReachable = Boolean(hostService?.running) && tools.egress === "open";
+    const serviceReachable = Boolean(hostService?.running) && tools.loopback;
     const serviceWarning = hostService && serviceReachable ? hostServiceWarning(hostService) : null;
     if (serviceWarning) warnings.push(serviceWarning);
     let probes = null;
     let probeError = null;
     try {
-      probes = runProbes({ nonoBin: deps.nono.bin, profile: tools.ref, env: deps.env }).checks;
+      probes = (await runProbes({ nonoBin: deps.nono.bin, profile: tools.ref, env: deps.env })).checks;
     } catch (error) {
       probeError = { kind: errorKindOf(error), message: errorMessageOf(error) };
       warnings.push(`The escape probe could not run: ${errorMessageOf(error)}`);
@@ -395,7 +396,7 @@ const ACTIONS = {
       probeError,
       warnings,
     };
-    const describeProfile = (label, item) => `${label}: ${item.ref} (extends ${item.extends.join(", ") || "nothing"}; egress ${item.egress}${item.allowDomains.length > 0 ? ` [${item.allowDomains.join(", ")}]` : ""}; AF_UNIX mediation ${item.afUnixMediation})`;
+    const describeProfile = (label, item) => `${label}: ${item.ref} (extends ${item.extends.join(", ") || "nothing"}; egress ${item.egress}${item.allowDomains.length > 0 ? ` [${item.allowDomains.join(", ")}]` : ""}; localhost ${item.loopback ? "REACHABLE" : "unreachable"}; AF_UNIX mediation ${item.afUnixMediation})`;
     const lines = [
       `nono executable: ${deps.nono.bin} (${version.raw})`,
       `node: ${process.execPath}`,
@@ -417,7 +418,10 @@ const ACTIONS = {
     }
     for (const warning of warnings) lines.push(`warning: ${warning}`);
     if (serviceWarning && deps.config.hostServiceCheck === "refuse") {
-      throw new PluginError("unconfined", `start-agent and reconnect will refuse to run: an OpenCode background service (pid ${hostService?.pid}) runs outside any sandbox and the agent's tools can reach it, so they could use it to run commands on the host. Stop it with "opencode service stop", or use a server profile that routes egress through nono's proxy.`, { payload, output: lines.join("\n") });
+      throw new PluginError("unconfined", `start-agent and reconnect will refuse to run: an OpenCode background service (pid ${hostService?.pid}) runs outside any sandbox and the agent's tools can reach it, so they could use it to run commands on the host. Stop it with "opencode service stop", and restrict network.allow_domain in the server profile to your provider's hosts.`, { payload, output: lines.join("\n") });
+    }
+    if (agent.hostService === "opencode" && tools.loopback && deps.config.hostServiceCheck === "refuse") {
+      throw new PluginError("unconfined", `start-agent and reconnect will refuse to run: the agent's tools can reach localhost under profile ${tools.ref}, where an OpenCode host service can start at any time. Restrict network.allow_domain in the server profile to your provider's hosts.`, { payload, output: lines.join("\n") });
     }
     const critical = failedProbes.filter((check) => check.severity === "critical");
     if (critical.length > 0) {

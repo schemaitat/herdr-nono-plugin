@@ -31,13 +31,15 @@ test("doctor reports nono, the resolved profile and a clean escape probe with th
   assert.equal(result.profile.egress, "blocked");
   assert.equal(result.serverProfile.ref, SERVER_PROFILE);
   assert.equal(result.serverProfile.egress, "allowlist");
-  assert.deepEqual(result.serverProfile.allowDomains, ["*"]);
+  assert.deepEqual(result.serverProfile.allowDomains, ["models.opencode.ai", "github.com", "api.github.com", "api.githubcopilot.com", "*.githubcopilot.com"]);
+  assert.equal(result.serverProfile.loopback, false);
   assert.equal(result.serverProfile.afUnixMediation, "pathname");
   assert.equal(result.hostService.running, false);
   assert.ok(result.probes.every((check) => check.ok));
   assert.deepEqual(result.warnings, []);
   assert.match(stdout, /probe ok {3}herdrSocket: denied/);
   assert.match(stdout, /probe ok {3}opencodeServicePort: denied/);
+  assert.match(stdout, /probe ok {3}loopbackViaProxy: denied/);
   const run = f.nonoRuns()[0];
   assert.deepEqual(run.argv.slice(0, 6), ["run", "--silent", "--profile", SERVER_PROFILE, "--name", "herdr-nono-probe"], "the probe runs under the profile the tools run under");
   assert.ok(run.env.HERDR_SOCKET_PATH, "the probe keeps HERDR_* so it shows whether the profile strips them");

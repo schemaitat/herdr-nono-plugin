@@ -2,8 +2,8 @@
   "extends": "nolabs-ai/opencode",
   "meta": {
     "name": "herdr-opencode-server",
-    "version": "0.2.0",
-    "description": "OpenCode's server in a Herdr pane (herdr-nono-plugin). The server runs the model loop and every tool. Egress goes through nono's proxy with every domain allowed, so the internet stays reachable for proxy-aware clients while direct TCP connects, including to localhost services such as the OpenCode host service on 127.0.0.1:4096, are denied. Pathname AF_UNIX mediation keeps Herdr's control socket, systemd, D-Bus and the SSH and GPG agents out of reach. The plugin grants the workspace root and the server's listen port per launch."
+    "version": "0.3.0",
+    "description": "OpenCode's server in a Herdr pane (herdr-nono-plugin). The server runs the model loop and every tool. Egress goes through nono's proxy to an allowlist of LLM provider hosts (GitHub Copilot) and OpenCode's model catalog; direct TCP connects are denied, and the proxy refuses every other host, including every name for localhost, so the OpenCode host service on 127.0.0.1:4096 is out of reach. Never add \"*\", localhost, IP addresses or wildcard DNS names: nono's proxy connects to whatever an allowed name resolves to. Pathname AF_UNIX mediation keeps Herdr's control socket, systemd, D-Bus and the SSH and GPG agents out of reach. The plugin grants the workspace root and the server's listen port per launch."
   },
   "workdir": {
     "access": "readwrite"
@@ -15,7 +15,11 @@
   },
   "network": {
     "allow_domain": [
-      "*"
+      "models.opencode.ai",
+      "github.com",
+      "api.github.com",
+      "api.githubcopilot.com",
+      "*.githubcopilot.com"
     ]
   },
   "linux": {

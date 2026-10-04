@@ -20,13 +20,13 @@ apply to the next `start-agent` or `reconnect`.
 | `profile` | `null` | nono profile of the pane's sandbox (OpenCode's client). |
 | `allowPaths` | `[]` | Extra absolute directories granted read-write. |
 | `readPaths` | `[]` | Extra absolute directories granted read-only. |
-| `nonoArgs` | `[]` | Extra `nono run` flags, for example `["--memory", "4G"]`. |
+| `nonoArgs` | `[]` | Extra `nono run` flags, for example `["--memory", "4G"]`. Network flags, `--profile` and `--allow-cwd` are rejected ([Profiles](profiles.md#what-the-plugin-grants-per-launch)). |
 | `agentKind` | `"opencode"` | Which agent to launch; other kinds come from `customAgents`. |
 | `agentArgs` | `{}` | Per kind, arguments replacing the defaults. Required ones (OpenCode's `--server`) always stay. |
 | `resumeArgs` | `{}` | Per kind, arguments `reconnect` adds (OpenCode: `["--continue"]`). |
-| `agentEnv` | `[]` | `KEY=VALUE` entries for the agent. Keep secrets out. |
+| `agentEnv` | `[]` | `KEY=VALUE` entries for the agent. Keep secrets out. `NONO_*` variables that nono reads as flags (`NONO_ALLOW_DOMAIN`, ...) are rejected. |
 | `customAgents` | `{}` | Extra agents, see below. |
-| `hostServiceCheck` | `"refuse"` | When the OpenCode host service runs **and** the server profile can reach localhost (not with the shipped one): `refuse` to start, `warn`, or `off`. |
+| `hostServiceCheck` | `"refuse"` | When the server profile can reach localhost (open egress, or an allowed domain such as `"*"` that covers it; not the shipped one), whether or not the OpenCode host service runs: `refuse` to start, `warn`, or `off`. |
 | `verifyAfterStart` | `true` | Verify every launch from outside. |
 | `onVerificationFailure` | `"stop"` | `stop` the agent when verification fails, or only `warn`. |
 | `openIn` | `"split"` | Open the agent in a `split` or a new `tab`. |

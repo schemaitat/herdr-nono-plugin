@@ -193,6 +193,43 @@ test("hostServiceCheck off does not look for the service", async () => {
   f.cleanup();
 });
 
+test("a server profile that allows every domain is refused even while no host service runs", () => {
+  const f = startedFixture({ serverProfile: "/etc/wildcard-server.json" });
+  const { status, stdout } = runBridge(f, "start", "pane-1");
+  assert.equal(status, 1);
+  assert.match(stdout, /nono: the agent was NOT started\. The agent's tools can reach localhost: profile \/etc\/wildcard-server\.json allows "\*", which allows every host, including localhost/);
+  assert.match(stdout, /error: Not started: the agent's tools can reach localhost/);
+  assert.equal(f.nonoRuns().length, 0, "neither sandbox starts");
+  const entry = f.mappings().panes["pane-1"];
+  assert.equal(entry.lifecycleState, "failed");
+  assert.equal(entry.lastError.kind, "unconfined");
+  assert.ok(f.herdrCalls().some((call) => call[0] === "notification" && /NOT started/.test(call[2]) && /localhost/.test(call[4])));
+  f.cleanup();
+});
+
+test("a server profile whose allowlist names localhost is refused, an allowlist of provider hosts is not", () => {
+  const f = startedFixture();
+  const loopback = runBridge(f, "start", "pane-1", { env: { FAKE_NONO_PROFILE_JSON: JSON.stringify({ name: "x", network: { allow_domain: ["api.githubcopilot.com", "127.0.0.1.nip.io"] }, linux: { af_unix_mediation: "pathname" } }) } });
+  assert.equal(loopback.status, 1);
+  assert.match(loopback.stdout, /"127\.0\.0\.1\.nip\.io", which is a wildcard DNS service/);
+  assert.equal(f.nonoRuns().length, 0);
+  f.cleanup();
+  const ok = startedFixture();
+  const started = runBridge(ok, "start", "pane-1");
+  assert.equal(started.status, 0, started.stdout);
+  assert.equal(ok.nonoRuns().length, 2);
+  ok.cleanup();
+});
+
+test("hostServiceCheck warn starts an agent whose tools can reach localhost with no host service, with a warning", () => {
+  const f = startedFixture({ serverProfile: "/etc/wildcard-server.json", hostServiceCheck: "warn" });
+  const { status, stdout } = runBridge(f, "start", "pane-1");
+  assert.equal(status, 0, stdout);
+  assert.match(stdout, /warning: The agent's tools can reach localhost/);
+  assert.equal(f.nonoRuns().length, 2);
+  f.cleanup();
+});
+
 test("shell opens the configured shell without start-up files in a sandbox named after the agent", () => {
   const f = startedFixture({ shell: "/bin/true" });
   const { status, stdout } = runBridge(f, "shell", "pane-1");
@@ -236,6 +273,11 @@ test("agents Herdr cannot detect are reported for the time they run", () => {
   assert.deepEqual(calls[report].slice(2, 9), ["pane-1", "--source", "nono.sandbox", "--agent", "tool", "--state", "unknown"]);
   assert.deepEqual(f.nonoRuns()[0].argv.slice(0, 3), ["run", "--profile", "opencode"]);
   f.cleanup();
+});
+
+test("sandboxEnv strips the NONO_* variables nono reads as flags that widen the profile", () => {
+  const env = sandboxEnv({ PATH: "/bin", NONO_ALLOW_DOMAIN: "localhost", NONO_NETWORK_PROFILE: "open", NONO_UPSTREAM_PROXY: "127.0.0.1:4096", NONO_ALLOW: "/", NONO_THEME: "dark" });
+  assert.deepEqual(env, { PATH: "/bin", NONO_THEME: "dark" });
 });
 
 test("sandboxEnv strips Herdr's and the host agents' socket variables and adds agentEnv", () => {
