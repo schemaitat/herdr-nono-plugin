@@ -70,7 +70,7 @@ There is no lint, format or typecheck tool configured. `npm install` is unnecess
 | Environment for the sandbox | Always through `sandboxEnv` (`src/lifecycle.mjs`), which drops `STRIPPED_ENV_PATTERNS` (`src/constants.mjs`) |
 | Deciding a mapping is busy | `bridgeIsRunning` / `shellIsRunning` (`src/lifecycle.mjs`; pid + `processStartToken` + command line) before Herdr's agent detection |
 | Judging confinement | `verifySession` (`src/verify.mjs`) from outside the sandbox; never trust output of a process inside it |
-| Changing a profile | Keep `extends: "nolabs-ai/opencode"`, `linux.af_unix_mediation: "pathname"`, `environment.deny_vars` with `HERDR_*`, the server's proxy mode with a provider allowlist (`loopbackDomains` must stay empty; never `"*"`) and the client's block; run `doctor` and `test/integration-egress.test.mjs` on a real host; update `docs/profiles.md` and `docs/security.md` |
+| Changing a profile | Keep `extends: "nolabs-ai/opencode"`, `linux.af_unix_mediation: "pathname"`, `environment.deny_vars` with `HERDR_*`, the server's proxy mode with a provider allowlist (`loopbackDomains` must stay empty; never `"*"`) and the client's block; run `doctor`, `test/integration-egress.test.mjs` and `test/integration-sandbox.test.mjs` on a real host; update `docs/profiles.md` and `docs/security.md` |
 | Reading OpenCode's service files | URL, pid and port only (`src/hostservice.mjs`); never the password |
 | Choosing the workspace root | `resolveWorkspaceRoot`/`resolveWorkdir` (`src/context.mjs`) then `assertWorkspaceRoot` |
 | Adding a key binding | An `add_binding` line in `scripts/install-keybindings.sh` (the chord must be absent from its `herdr_defaults` list), the key bindings tables in `README.md` and `docs/key-bindings.md` (parity test), the chord column in `docs/actions.md`, `docs/development.md` step 3 |
@@ -123,6 +123,7 @@ There is no lint, format or typecheck tool configured. `npm install` is unnecess
 | `nono ps --json` array with `session_id`, `name`, `supervisor_pid`, `status` | nono 0.78.0 | `normalizeSessionList` |
 | `nono profile show --json` resolved profile with `linux.af_unix_mediation`, `network` | nono 0.78.0 | `summarizeProfile` |
 | Sandboxed processes carry `NoNewPrivs: 1` and `NONO_CAP_FILE`; the host can read their `/proc` entries | nono 0.78.0, Linux 7.0 | `src/verify.mjs` |
+| `af_unix_mediation: "pathname"` refuses `connect()` to any ungranted Unix socket (Herdr's included), even in a granted directory; `listen_port`/`open_port` are the only loopback ports | nono 0.78.0, Herdr 0.9.1 | `test/integration-sandbox.test.mjs` |
 | `opencode serve --hostname 127.0.0.1 --port P` honours `OPENCODE_PASSWORD` (Basic auth, user `opencode`); `opencode --server URL` sends it | OpenCode 2.0.20 | `BUILTIN_AGENTS.opencode.server` |
 | nono proxy mode honours `--listen-port P`; blocked mode honours `--open-port P`; proxy mode + AF_UNIX mediation rate-limits connects | nono 0.78.0 | `docs/security.md` |
 | nono's proxy answers `403` to a CONNECT for any host the allowlist does not match, but forwards to whatever an allowed name resolves to, loopback included | nono 0.78.0 | `loopbackReason` (`src/nono.mjs`), `test/integration-egress.test.mjs` |

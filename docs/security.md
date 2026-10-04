@@ -48,6 +48,44 @@ Herdr's socket matters most: through it a process can type commands into any
 other pane, which run outside the sandbox. [Profiles](profiles.md) lists the
 settings behind each row.
 
+### Why `herdr pane run` cannot reach the host
+
+`herdr pane run <pane> <cmd>`, `send-text`, `send-keys` and `split` are
+requests to the Herdr server over its control socket,
+`~/.config/herdr/herdr.sock` (or `$HERDR_SOCKET_PATH`). The server runs the
+command in a real pane, outside any sandbox, so a sandboxed process that
+reaches the socket can run anything on the host. Three layers stop it:
+
+1. **No address.** nono drops `HERDR_*` (`environment.deny_vars`) and the
+   plugin strips them too, so the sandbox gets no `HERDR_SOCKET_PATH` and no
+   pane ids. This alone is not enough: the default path is well known.
+2. **No connection.** `linux.af_unix_mediation: "pathname"` makes nono refuse
+   `connect()` to any Unix socket the profile does not grant. Neither shipped
+   profile grants Herdr's. The socket file is visible (`ls` works), but
+   connecting fails with `EPERM`, and the `herdr` CLI fails with
+   `Permission denied` before it sends anything.
+3. **Checked.** `doctor` connects to the socket from a sandbox with the server
+   profile (`herdrSocket`, critical) and fails if it gets through.
+
+Verified with Herdr 0.9.1 and nono 0.78.0 by running inside each shipped
+profile, with the socket path set by hand, against a pane id that does not
+exist (an answer would prove access without running anything):
+
+```bash
+cd "$(mktemp -d)"
+nono run --silent --profile "<plugin root>/profiles/herdr-opencode-server.json" --allow "$PWD" -- \
+  sh -c 'HERDR_SOCKET_PATH=$HOME/.config/herdr/herdr.sock herdr pane run zz:p999 true'
+# Error: Os { code: 1, kind: PermissionDenied, message: "Operation not permitted" }
+```
+
+The same command on the host, or under a copy of the profile without
+`af_unix_mediation`, gets Herdr's answer
+`{"error":{"code":"pane_not_found",...}}`: the server was reached, and a real
+pane id would have run the command. So keep the mediation setting in every
+profile you write ([Keep these settings](profiles.md#keep-these-settings)).
+`test/integration-sandbox.test.mjs` runs this check, and the control without
+mediation, whenever nono and a Herdr server are present.
+
 ## How it is checked
 
 - **After every launch** the plugin walks both process trees from outside,
@@ -73,6 +111,15 @@ settings behind each row.
   with `unconfined`.
 
 The checks run outside the sandbox, so the agent cannot fake them.
+
+Two test files repeat them against the real nono (skipped without it, or with
+`HERDR_NONO_INTEGRATION=0`), each with a control that removes the protection
+and shows the test would catch it:
+
+| File | Checks |
+| --- | --- |
+| `test/integration-egress.test.mjs` | No localhost from the server sandbox, directly or through the proxy under any loopback name; the host service port; Copilot hosts allowed, other hosts `403`; `"*"` and `localhost` refused before launch |
+| `test/integration-sandbox.test.mjs` | No host Unix socket from either sandbox, even in a writable directory; `herdr pane run` fails in both; no `HERDR_*`, SSH, GPG, D-Bus or tmux variables; `doctor`'s probe passes for both profiles; workspace writable, home not; the client reaches only its server's port, the server listens only on it |
 
 ## What it does not protect
 

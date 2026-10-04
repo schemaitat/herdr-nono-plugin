@@ -14,6 +14,10 @@ node --test --test-name-pattern="stop" "test/*.test.mjs" # by name
 
 The tests run the real scripts against fake `nono`, `herdr` and `opencode`
 in `test/fakes/` and fake `/proc` trees, so they need neither nono nor Herdr.
+On a host with nono and the `nolabs-ai/opencode` pack, `npm test` also runs
+`test/integration-egress.test.mjs` and `test/integration-sandbox.test.mjs`
+against real sandboxes ([what they check](security.md#how-it-is-checked));
+`HERDR_NONO_INTEGRATION=0` skips them.
 
 ## Docs
 
