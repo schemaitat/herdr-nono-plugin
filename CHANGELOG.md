@@ -58,6 +58,13 @@
   says early that the plugin is built for OpenCode.
 - `justfile` with `just docs` (live preview) and `just docs-build` (strict build, as in CI).
 
+## [0.3.0](https://github.com/schemaitat/herdr-nono-plugin/compare/v0.2.0...v0.3.0) (2026-10-06)
+
+
+### Bug Fixes
+
+* **rust:** strip the --standalone flag the OpenCode pack appends ([#9](https://github.com/schemaitat/herdr-nono-plugin/issues/9)) ([d7b4fa8](https://github.com/schemaitat/herdr-nono-plugin/commit/d7b4fa8c5a1760da63c0ff5c8c604a611e17dec4))
+
 ## [0.2.0](https://github.com/schemaitat/herdr-nono-plugin/compare/v0.1.0...v0.2.0) (2026-10-06)
 
 
