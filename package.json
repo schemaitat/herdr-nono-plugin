@@ -1,6 +1,6 @@
 {
   "name": "herdr-nono-plugin",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Herdr plugin that runs coding agents, client and server together, inside nono sandboxes. The plugin itself is the Rust crate in this repository; this package.json only runs its black-box tests.",
   "type": "module",
   "private": true,

@@ -1,6 +1,6 @@
 id = "nono.sandbox"
 name = "nono sandboxes"
-version = "0.1.0"
+version = "0.2.0"
 min_herdr_version = "0.9.0"
 description = "Run a coding agent (OpenCode by default) in a nono sandbox, client and server together, driven from a Herdr pane."
 platforms = ["linux"]

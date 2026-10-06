@@ -58,6 +58,25 @@
   says early that the plugin is built for OpenCode.
 - `justfile` with `just docs` (live preview) and `just docs-build` (strict build, as in CI).
 
+## [0.2.0](https://github.com/schemaitat/herdr-nono-plugin/compare/v0.1.0...v0.2.0) (2026-10-06)
+
+
+### ⚠ BREAKING CHANGES
+
+* **rust:** HERDR_NONO_NODE and bin/node-path are gone; HERDR_NONO_BINARY points the shim at another binary. doctor reports binary and binaryVersion instead of node.
+
+### Features
+
+* herdr plugin that runs OpenCode in nono sandboxes ([c5ad6a2](https://github.com/schemaitat/herdr-nono-plugin/commit/c5ad6a2756c117c3d5b513b942c3a647940419b4))
+* interactive sandboxes overlay with client/server process view ([e232515](https://github.com/schemaitat/herdr-nono-plugin/commit/e232515e857376b55af6e3cd2849ccdfcc9e009d))
+* profiles view in the overlay, profile docs, and real-nono socket confinement tests ([#4](https://github.com/schemaitat/herdr-nono-plugin/issues/4)) ([1a2228c](https://github.com/schemaitat/herdr-nono-plugin/commit/1a2228ce2b7286425f1ecdba502152e1c1253810))
+* **rust:** ship the plugin as a single Rust binary ([#5](https://github.com/schemaitat/herdr-nono-plugin/issues/5)) ([4a0bbb6](https://github.com/schemaitat/herdr-nono-plugin/commit/4a0bbb6ecc119f1fee05e970c290966b7c23d8bf))
+
+
+### Bug Fixes
+
+* restrict server egress to GitHub Copilot so sandboxes cannot reach localhost ([#3](https://github.com/schemaitat/herdr-nono-plugin/issues/3)) ([30fcca5](https://github.com/schemaitat/herdr-nono-plugin/commit/30fcca58f01607d7b2c70fb8abaec9c928645ae9))
+
 ## 0.1.0 - 2026-09-29
 
 Initial release.
