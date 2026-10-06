@@ -2,7 +2,7 @@ node_modules/
 *.log
 .DS_Store
 .agents/
-bin/node-path
+bin/herdr-nono
 site/
 __pycache__/
 

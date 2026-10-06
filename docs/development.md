@@ -1,23 +1,42 @@
 # Development
 
-[Link a checkout](getting-started.md#link-a-checkout-instead). There are no
-dependencies and no build step beyond `scripts/write-node-path.sh`, which
-records the node path for the shim `bin/run.sh`.
+[Link a checkout](getting-started.md#link-a-checkout-instead). The plugin is one
+Rust crate that builds one binary, `herdr-nono`; `bin/run.sh` is a shell shim
+that Herdr starts, which runs `bin/herdr-nono`. For development point the shim
+at your build instead of installing a release:
+
+```bash
+cargo build                                          # target/debug/herdr-nono
+export HERDR_NONO_BINARY="$PWD/target/debug/herdr-nono"   # for scripts/run-action.sh and tests
+```
 
 ## Tests
 
 ```bash
-npm run check                                            # syntax check, then all tests
-node --test test/actions.test.mjs                        # one file
+just check                                               # fmt, clippy, cargo test, then the black-box tests
+cargo test                                               # the crate's unit and pseudo-terminal tests
+npm run check                                            # build, syntax check, then the black-box tests
+node --test test/actions.test.mjs                        # one black-box file
 node --test --test-name-pattern="stop" "test/*.test.mjs" # by name
 ```
 
-The tests run the real scripts against fake `nono`, `herdr` and `opencode`
-in `test/fakes/` and fake `/proc` trees, so they need neither nono nor Herdr.
-On a host with nono and the `nolabs-ai/opencode` pack, `npm test` also runs
-`test/integration-egress.test.mjs` and `test/integration-sandbox.test.mjs`
-against real sandboxes ([what they check](security.md#how-it-is-checked));
+`cargo test` covers the modules (including the overlay's screen and keys on
+ratatui's test backend, and a pseudo-terminal run of the overlay). The
+black-box tests in `test/` run the built binary against fake `nono`, `herdr`
+and `opencode` in `test/fakes/`; they need neither nono nor Herdr. Node is
+only their test runner. On a host with nono and the `nolabs-ai/opencode` pack,
+`npm test` also runs `test/integration-egress.test.mjs` and
+`test/integration-sandbox.test.mjs` against real sandboxes
+([what they check](security.md#how-it-is-checked));
 `HERDR_NONO_INTEGRATION=0` skips them.
+
+## Releases
+
+A `v*` tag runs `.github/workflows/release.yml`: it builds static (musl)
+binaries for x86_64 and aarch64 Linux with `cargo-zigbuild`, writes
+`SHA256SUMS`, and attaches them to the tag's GitHub release. The tag must equal
+the version in `Cargo.toml` and `herdr-plugin.toml`, or the workflow fails. A
+manual run builds the files as workflow artifacts without a release.
 
 ## Docs
 
@@ -58,22 +77,27 @@ What the fakes cannot show. Use a throwaway repository and
 
 | Path | Purpose |
 | --- | --- |
-| `herdr-plugin.toml` | Manifest: actions, hook, overlay pane |
+| `herdr-plugin.toml` | Manifest: actions, hook, overlay pane, build step |
 | `profiles/` | `herdr-opencode-server.json`, `herdr-opencode-client.json` |
-| `bin/run.sh`, `scripts/write-node-path.sh` | Node shim and build step |
+| `bin/run.sh` | The shim Herdr starts; runs `bin/herdr-nono` |
+| `scripts/install-binary.sh` | Build step: download and verify the release binary, or build from source |
 | `scripts/install-keybindings.sh` | Key binding installer |
-| `scripts/run-action.sh` | Run an action and wait for its result |
-| `src/action.mjs`, `src/action-main.mjs` | Action entry point and handlers |
-| `src/bridge.mjs`, `src/bridge-main.mjs` | In-pane launcher |
-| `src/events.mjs`, `src/events-main.mjs` | `worktree.removed` hook |
-| `src/sandboxes-pane.mjs`, `src/sandboxes-pane-main.mjs` | Overlay |
-| `src/lifecycle.mjs` | Launch, shell, stop, verify, describe |
-| `src/verify.mjs`, `src/procfs.mjs` | Verification over `/proc` |
-| `src/hostservice.mjs` | OpenCode host service detection |
-| `src/probes.mjs` | `doctor`'s escape probe |
-| `src/nono.mjs`, `src/herdr.mjs` | CLI wrappers |
-| `src/agents.mjs` | Built-in and custom agents |
-| `src/context.mjs` | Herdr context, workspace root |
-| `src/state.mjs`, `src/config.mjs` | Mapping store, config |
-| `src/result.mjs`, `src/errors.mjs` | Result line, error kinds |
-| `src/naming.mjs`, `src/shell.mjs`, `src/constants.mjs` | Names, quoting, constants |
+| `scripts/run-action.sh` | Run an action and wait for its result (`herdr-nono run-action`) |
+| `rust/src/main.rs` | Subcommands: `action`, `bridge`, `events`, `pane`, `run-action` and hidden helpers |
+| `rust/src/action.rs` | Action dispatcher and the twelve actions |
+| `rust/src/bridge.rs`, `rust/src/signals.rs` | In-pane launcher and its signal handling |
+| `rust/src/events.rs` | `worktree.removed` hook |
+| `rust/src/lifecycle.rs` | Launch, shell, stop, verify, describe, prune |
+| `rust/src/pane/mod.rs`, `rust/src/pane/app.rs` | Overlay: entry point, event loop, key state machine |
+| `rust/src/pane/ui.rs`, `rust/src/pane/model.rs`, `rust/src/pane/worker.rs` | Overlay: ratatui screen, data, background worker |
+| `rust/src/verify.rs`, `rust/src/procfs.rs` | Verification over `/proc` |
+| `rust/src/hostservice.rs` | OpenCode host service detection |
+| `rust/src/probes.rs` | `doctor`'s escape probe (also the in-sandbox `probe` subcommand) |
+| `rust/src/nono.rs`, `rust/src/herdr.rs`, `rust/src/exec.rs` | CLI wrappers and the command runner |
+| `rust/src/agents.rs` | Built-in and custom agents |
+| `rust/src/context.rs` | Herdr context, workspace root |
+| `rust/src/state.rs`, `rust/src/config.rs` | Mapping store, config |
+| `rust/src/result.rs`, `rust/src/errors.rs`, `rust/src/describe.rs` | Result line, error kinds, `describe` |
+| `rust/src/naming.rs`, `rust/src/shell.rs`, `rust/src/constants.rs`, `rust/src/util.rs` | Names, quoting, constants, helpers |
+| `rust/src/run_action.rs` | `run-action` |
+| `test/` | Black-box tests, fakes in `test/fakes/`, helpers in `test/support/` |

@@ -122,13 +122,13 @@ mod tests {
     #[test]
     fn build_pane_command_uses_env_for_fish_compatibility_and_quotes_words() {
         let command = build_pane_command(
-            &owned(&["/usr/bin/node", "/plugin root/src/bridge.mjs", "start"]),
+            &owned(&["/plugin root/bin/herdr-nono", "bridge", "start"]),
             &[("HERDR_AGENT".into(), "opencode".into())],
         )
         .unwrap();
         assert_eq!(
             command,
-            "env HERDR_AGENT=opencode /usr/bin/node '/plugin root/src/bridge.mjs' start"
+            "env HERDR_AGENT=opencode '/plugin root/bin/herdr-nono' bridge start"
         );
         assert_eq!(build_pane_command(&owned(&["ls"]), &[]).unwrap(), "ls");
         let bad_name =

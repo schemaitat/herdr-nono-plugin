@@ -20,7 +20,8 @@ inside [nono](https://nono.sh) sandboxes, one agent per pane.
 ### 1. Install
 
 Needs Linux (kernel 6.7+), [Herdr](https://herdr.dev) 0.9+, [nono](https://nono.sh)
-0.78+, Node.js 20+ and [OpenCode](https://opencode.ai) 2.x signed in to a provider.
+0.78+ and [OpenCode](https://opencode.ai) 2.x signed in to a provider. The plugin is one prebuilt binary
+(Rust, only needed to build from source); nothing else runs at runtime.
 
 ```bash
 nono pull nolabs-ai/opencode                                          # the nono profile pack the plugin builds on

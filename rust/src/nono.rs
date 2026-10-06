@@ -971,3 +971,54 @@ esac
         );
     }
 }
+
+#[cfg(test)]
+mod shipped_profiles {
+    use super::*;
+    use serde_json::json;
+
+    fn shipped(name: &str) -> Value {
+        let file = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("profiles")
+            .join(name);
+        serde_json::from_str(&std::fs::read_to_string(file).unwrap()).unwrap()
+    }
+
+    #[test]
+    fn the_shipped_profiles_extend_the_opencode_pack_close_the_host_sockets_and_lock_down_localhost(
+    ) {
+        let client = shipped("herdr-opencode-client.json");
+        let server = shipped("herdr-opencode-server.json");
+        for profile in [&client, &server] {
+            assert_eq!(profile["extends"], "nolabs-ai/opencode");
+            assert_eq!(profile["linux"]["af_unix_mediation"], "pathname");
+            let denied = profile["environment"]["deny_vars"].as_array().unwrap();
+            assert!(denied.contains(&json!("HERDR_*")) && denied.contains(&json!("SSH_AUTH_SOCK")));
+            assert_eq!(profile["filesystem"]["suppress_save_prompt"], json!(["/"]));
+        }
+        assert_eq!(
+            client["network"],
+            json!({"block": true}),
+            "the client reaches nothing but its server's port"
+        );
+        assert_eq!(
+            server["network"],
+            json!({"allow_domain": ["models.opencode.ai", "github.com", "api.github.com", "api.githubcopilot.com", "*.githubcopilot.com"]}),
+            "the server reaches GitHub Copilot and OpenCode's model catalog through nono's proxy, nothing else"
+        );
+        let domains: Vec<String> = server["network"]["allow_domain"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|domain| domain.as_str().unwrap().to_string())
+            .collect();
+        assert!(
+            loopback_domains(&domains).is_empty(),
+            "no allowed domain can resolve to localhost"
+        );
+        let summary = summarize_profile(&server);
+        assert_eq!(summary.egress, "allowlist");
+        assert!(!summary.loopback);
+        assert_eq!(summarize_profile(&client).egress, "blocked");
+    }
+}

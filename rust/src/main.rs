@@ -20,6 +20,7 @@ mod pane;
 mod probes;
 mod procfs;
 mod result;
+mod run_action;
 mod shell;
 mod signals;
 mod state;
@@ -58,9 +59,20 @@ enum Command {
     Events(Passthrough),
     /// Show the interactive sandboxes overlay.
     Pane(Passthrough),
+    /// Run a plugin action through Herdr and wait for its result (what scripts/run-action.sh does).
+    RunAction(Passthrough),
     /// Run the escape probe checks; only meaningful inside a sandbox.
     #[command(hide = true)]
     Probe(Passthrough),
+    /// Resolve a profile with nono and print what the plugin makes of it (egress, loopback domains, grants) as JSON.
+    #[command(hide = true)]
+    ProfileSummary {
+        /// The nono executable.
+        #[arg(long, default_value = "nono")]
+        nono_bin: String,
+        /// The profile name or file.
+        profile: String,
+    },
     /// Run the escape probe in a throwaway sandbox and print the checks as JSON.
     #[command(hide = true)]
     ProbeRun {
@@ -100,8 +112,29 @@ fn main() -> ExitCode {
             &context::process_env(),
         )),
         Command::Events(_) => exit_with(events::handle_event(&context::process_env())),
+        Command::RunAction(passthrough) => exit_with(run_action::run_action_command(
+            &passthrough.args,
+            &context::process_env(),
+        )),
         Command::Pane(passthrough) => exit_with(pane::run_pane_from_process(&passthrough.args)),
         Command::Probe(passthrough) => probes::probe_main(&passthrough.args),
+        Command::ProfileSummary { nono_bin, profile } => {
+            let nono = nono::NonoClient::new(nono_bin, context::process_env());
+            match nono.show_profile(&profile) {
+                Ok(resolved) => {
+                    println!(
+                        "{}",
+                        serde_json::to_string(&nono::summarize_profile(&resolved))
+                            .expect("a summary serialises")
+                    );
+                    ExitCode::SUCCESS
+                }
+                Err(error) => {
+                    eprintln!("{}", error.message);
+                    ExitCode::FAILURE
+                }
+            }
+        }
         Command::ProbeRun {
             nono_bin,
             profile,

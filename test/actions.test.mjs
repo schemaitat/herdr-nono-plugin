@@ -4,8 +4,6 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import path from "node:path";
 import { test } from "node:test";
-import { bridgeStartTimeout, entryCwd, nonoVersionWarning, parseKeybindingReport } from "../src/action-main.mjs";
-import { summarizeProfile } from "../src/nono.mjs";
 import { FAKE_NONO, ROOT, bridgeInvocation, createFixture, fakeBridgeProcess, fakeShellProcess, mappingFor, runAction } from "./helpers.mjs";
 
 const NAME = "herdr-opencode-abc123def456";
@@ -414,17 +412,4 @@ test("an unknown action and missing plugin directories are reported, not thrown"
   const noState = runAction(f, "doctor", { env: { HERDR_PLUGIN_STATE_DIR: "" } });
   assert.equal(noState.result.errorKind, "startup");
   f.cleanup();
-});
-
-test("small helpers", () => {
-  assert.equal(bridgeStartTimeout({}), 4000);
-  assert.equal(bridgeStartTimeout({ HERDR_NONO_BRIDGE_START_TIMEOUT_MS: "25" }), 25);
-  assert.equal(bridgeStartTimeout({ HERDR_NONO_BRIDGE_START_TIMEOUT_MS: "-1" }), 4000);
-  assert.equal(entryCwd({ workdir: "/definitely/gone", localPath: "/" }), "/");
-  assert.equal(entryCwd({ workdir: "/gone", localPath: "/also/gone" }), null);
-  assert.equal(nonoVersionWarning("0.78.0"), null);
-  assert.equal(nonoVersionWarning("1.0.0"), null);
-  assert.match(nonoVersionWarning("0.77.9"), /older/);
-  assert.equal(summarizeProfile({ network: { block: true } }).egress, "blocked");
-  assert.deepEqual(parseKeybindingReport("config: /c\nbound prefix+shift+a -> nono.sandbox.start-agent\nalready bound: nono.sandbox.reconnect (prefix+shift+b)\nwarning: w\nreloaded\n"), { configPath: "/c", added: [{ key: "prefix+shift+a", action: "start-agent" }], existing: [{ key: "prefix+shift+b", action: "reconnect" }], warnings: ["w"], reloaded: true });
 });

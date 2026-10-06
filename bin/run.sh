@@ -1,28 +1,22 @@
 #!/bin/sh
-# Runs a plugin script with a known Node binary. Herdr spawns plugin commands
-# with the server's PATH, which may not contain node (nvm, volta, brew in a
-# login-only PATH), so the install step records the absolute path in
-# bin/node-path and this shim prefers it. Override with HERDR_NONO_NODE, which
-# may be an absolute path or a name found on PATH. Only shell builtins are
-# used until node runs, so a PATH without coreutils cannot break the shim.
+# Runs the plugin binary: bin/run.sh <subcommand> [arguments]. Herdr starts the
+# plugin's commands through this shim, which finds bin/herdr-nono next to it
+# (installed by scripts/install-binary.sh) or at HERDR_NONO_BINARY, and execs
+# it. When the binary is missing it says so, in the result format an action's
+# caller parses and on stderr, instead of failing with a bare "not found".
+# Only shell builtins are used, so a PATH without coreutils cannot break it.
 case "$0" in
   */*) dir=${0%/*} ;;
   *) dir=. ;;
 esac
-node="${HERDR_NONO_NODE:-}"
-if [ -z "$node" ] && [ -r "$dir/node-path" ]; then
-  read -r node < "$dir/node-path" || node=""
-fi
-if [ -z "$node" ] || ! command -v "$node" >/dev/null 2>&1; then
-  node=node
-fi
-if ! command -v "$node" >/dev/null 2>&1; then
+binary="${HERDR_NONO_BINARY:-$dir/herdr-nono}"
+if [ ! -x "$binary" ]; then
   if [ -n "${HERDR_PLUGIN_ACTION_ID:-}" ]; then
-    printf 'HERDR_SANDBOX_RESULT: {"schemaVersion":1,"plugin":"nono.sandbox","action":"%s","ok":false,"errorKind":"startup","message":"node was not found; run scripts/write-node-path.sh in the plugin directory or set HERDR_NONO_NODE"}\n' "$HERDR_PLUGIN_ACTION_ID"
+    printf 'HERDR_SANDBOX_RESULT: {"schemaVersion":1,"plugin":"nono.sandbox","action":"%s","ok":false,"errorKind":"startup","message":"the plugin binary %s is missing; run sh scripts/install-binary.sh in the plugin directory"}\n' "$HERDR_PLUGIN_ACTION_ID" "$binary"
   fi
-  printf 'herdr-nono-plugin: node was not found on PATH. Run "sh scripts/write-node-path.sh" in the plugin directory or set HERDR_NONO_NODE to your node binary.\n' >&2
+  printf 'herdr-nono-plugin: the plugin binary %s is missing. Run "sh scripts/install-binary.sh" in the plugin directory (it downloads the release or builds from source), or set HERDR_NONO_BINARY.\n' "$binary" >&2
   # In a Herdr pane the pane closes with this process; give the message time to be read.
   if [ -t 1 ] && command -v sleep >/dev/null 2>&1; then sleep 8; fi
   exit 127
 fi
-exec "$node" "$@"
+exec "$binary" "$@"

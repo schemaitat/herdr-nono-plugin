@@ -1,0 +1,82 @@
+name: release
+
+# Builds the static Linux binaries the plugin's install step downloads and,
+# for a tag, attaches them to the GitHub release of that tag with SHA256SUMS.
+# A manual run only builds and keeps the files as workflow artifacts, which is
+# also how to try the build before the first tag exists.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        target: [x86_64-unknown-linux-musl, aarch64-unknown-linux-musl]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+      - uses: mlugg/setup-zig@v1
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-zigbuild
+      - name: Check that the tag matches the crate and the manifest
+        run: |
+          crate=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -n 1)
+          manifest=$(sed -n 's/^version = "\(.*\)"$/\1/p' herdr-plugin.toml | head -n 1)
+          test "$crate" = "$manifest" || { echo "Cargo.toml says $crate but herdr-plugin.toml says $manifest"; exit 1; }
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            test "v$crate" = "${GITHUB_REF_NAME}" || { echo "tag ${GITHUB_REF_NAME} does not match version $crate"; exit 1; }
+          fi
+          echo "VERSION=$crate" >> "$GITHUB_ENV"
+      - name: Build
+        run: cargo zigbuild --release --locked --target ${{ matrix.target }}
+      - name: Stage the asset
+        run: |
+          mkdir -p dist
+          cp "target/${{ matrix.target }}/release/herdr-nono" "dist/herdr-nono-${VERSION}-${{ matrix.target }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: herdr-nono-${{ matrix.target }}
+          path: dist/*
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: herdr-nono-*
+          merge-multiple: true
+      - name: Write SHA256SUMS
+        run: |
+          cd dist
+          sha256sum herdr-nono-* > SHA256SUMS
+          cat SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-assets
+          path: dist/*
+      - name: Attach to the release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1 \
+            || gh release create "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" --title "${GITHUB_REF_NAME}" --generate-notes
+          gh release upload "${GITHUB_REF_NAME}" dist/* --repo "${GITHUB_REPOSITORY}" --clobber

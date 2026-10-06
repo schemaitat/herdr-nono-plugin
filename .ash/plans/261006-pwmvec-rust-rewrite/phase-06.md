@@ -2,7 +2,7 @@
 id: 261006-pwmvec
 slug: rust-rewrite
 phase: 6
-status: Proposed
+status: Done
 ---
 
 # Phase 6 — Distribution and cut-over
@@ -22,37 +22,37 @@ way to get. Depends only on Phase 5.
 
 ## Steps
 
-- [ ] TASK-035: `.github/workflows/release.yml`: on tag `v*`, build
+- [x] TASK-035: `.github/workflows/release.yml`: on tag `v*`, build
   `x86_64-unknown-linux-musl` and `aarch64-unknown-linux-musl` with
   `cargo-zigbuild` and attach `herdr-nono-<version>-<target>` plus
   `SHA256SUMS` to the release. This waits on DEP-003 (an admin grants
   `contents: write`). Until then, build artifacts on a workflow dispatch
   and continue.
-- [ ] TASK-036: `scripts/install-binary.sh`: builtins-plus-`curl`/`wget`
+- [x] TASK-036: `scripts/install-binary.sh`: builtins-plus-`curl`/`wget`
   only. Detect the arch, download the release for the manifest `version`,
   verify the sha256 and install to `bin/herdr-nono`. If that fails and
   `cargo` exists, run `cargo build --release` and copy the result. Otherwise
   print an actionable error. Add a shell test with a local fake release
   directory. Why: RISK-001 and ASSUMPTION-001.
-- [ ] TASK-037: `herdr-plugin.toml`, `bin/run.sh`: the build step runs
+- [x] TASK-037: `herdr-plugin.toml`, `bin/run.sh`: the build step runs
   `install-binary.sh`. Every action, event and pane command runs
   `sh bin/run.sh <subcommand>`, and the shim now only execs
   `bin/herdr-nono` or prints the `startup` result line. Update
   `shim.test.mjs`.
-- [ ] TASK-038: `test/helpers.mjs`, `test/docs.test.mjs`: make the Rust
+- [x] TASK-038: `test/helpers.mjs`, `test/docs.test.mjs`: make the Rust
   binary the only target, drop the toggle, and read docs facts from
   `herdr-nono describe`. Port any remaining unit tests that import
   `src/*.mjs` into Rust.
-- [ ] TASK-039: `src/`, `scripts/write-node-path.sh`,
+- [x] TASK-039: `src/`, `scripts/write-node-path.sh`,
   `package.json`, `justfile`, `.github/workflows/ci.yml`: delete the JS
   runtime and node-path script. `package.json` keeps only the test runner,
   CI runs one Node version for the black-box suite, and `just check` runs
   cargo then the black-box tests.
-- [ ] TASK-040: `docs/`, `README.md`, `CHANGELOG.md`: replace Node
+- [x] TASK-040: `docs/`, `README.md`, `CHANGELOG.md`: replace Node
   requirements with the install story (prebuilt binary, cargo fallback),
   and document the probe change, the doctor output change and the
   dual-form bridge matching. `just docs-build` must be strict-clean.
-- [ ] TASK-041: Upgrade check on a real host: with an agent running under
+- [x] TASK-041: Upgrade check on a real host: with an agent running under
   the JS plugin, update the plugin to this branch, and confirm `info`,
   `verify-sandbox`, `stop` and the overlay all handle the existing mapping
   (CON-001, RISK-002).

@@ -10,19 +10,6 @@ permissions:
 
 jobs:
   test:
-    strategy:
-      fail-fast: false
-      matrix:
-        node: [20, 22, 24]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ matrix.node }}
-      - run: npm run check
-
-  rust:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -33,10 +20,9 @@ jobs:
       - run: cargo fmt --check
       - run: cargo clippy --all-targets -- -D warnings
       - run: cargo test
-      # The Node black-box tests are the parity suite: they run the actions, the
-      # bridge and the event hook through the Rust binary against the same fakes.
+      # The black-box tests drive the built binary against fake nono and herdr
+      # CLIs; Node is only the test runner (nothing in the plugin needs it).
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: cargo build
-      - run: HERDR_NONO_IMPL=rust node --test test/actions.test.mjs test/bridge.test.mjs test/events.test.mjs test/overlay.test.mjs test/upgrade.test.mjs
+      - run: npm run check

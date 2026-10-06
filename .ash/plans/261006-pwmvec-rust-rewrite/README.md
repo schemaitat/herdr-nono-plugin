@@ -1,7 +1,7 @@
 ---
 id: 261006-pwmvec
 slug: rust-rewrite
-status: In Progress
+status: Done
 created: 2026-10-06
 updated: 2026-10-06
 areas: [runtime, overlay, distribution, tests]
@@ -121,7 +121,7 @@ dependency for those tests only, never a runtime one.
 | 3 | Lifecycle, bridge and event hook | [phase-03.md](phase-03.md) | Done |
 | 4 | Actions | [phase-04.md](phase-04.md) | Done |
 | 5 | ratatui overlay | [phase-05.md](phase-05.md) | Done |
-| 6 | Distribution and cut-over | [phase-06.md](phase-06.md) | Proposed |
+| 6 | Distribution and cut-over | [phase-06.md](phase-06.md) | Done |
 
 ## Affected Files
 

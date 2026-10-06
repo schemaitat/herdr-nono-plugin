@@ -17,10 +17,21 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "no
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, before, describe, test } from "node:test";
-import { BUILTIN_AGENTS } from "../src/agents.mjs";
-import { createNonoClient, summarizeProfile } from "../src/nono.mjs";
-import { LOOPBACK_NAMES, runProbes, startCanary } from "../src/probes.mjs";
-import { ROOT, createFixture, mappingFor, runBridge } from "./helpers.mjs";
+import { createServer } from "node:net";
+import { SHIPPED_PROFILES, createFixture, describeBinary, mappingFor, runBridge, runProbes, summarizeProfile } from "./helpers.mjs";
+
+const LOOPBACK_NAMES = describeBinary().loopbackNames;
+
+/** Listens on an ephemeral port of the host's 127.0.0.1 until closed: the target of the loopback checks. */
+async function startCanary() {
+  const server = createServer((socket) => socket.destroy());
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => resolve(undefined));
+  });
+  const { port } = /** @type {import("node:net").AddressInfo} */ (server.address());
+  return { port, close: () => new Promise((resolve) => server.close(() => resolve(undefined))) };
+}
 
 /** The real nono as an absolute path: the bridge runs with the fixture's PATH. */
 const NONO = (() => {
@@ -29,7 +40,7 @@ const NONO = (() => {
   const found = (process.env.PATH ?? "").split(path.delimiter).map((dir) => path.join(dir, bin)).find((file) => existsSync(file));
   return found ?? bin;
 })();
-const SERVER_PROFILE = path.join(ROOT, BUILTIN_AGENTS.opencode.server.profile);
+const SERVER_PROFILE = SHIPPED_PROFILES.server;
 const PROVIDER_HOSTS = ["api.githubcopilot.com", "api.individual.githubcopilot.com", "api.github.com", "github.com", "models.opencode.ai"];
 const OTHER_HOSTS = ["www.google.com", "en.wikipedia.org", "registry.npmjs.org", "api.openai.com"];
 
@@ -184,14 +195,13 @@ describe("egress lockdown with the real nono", { skip: SKIP ?? false, concurrenc
   });
 
   test("the plugin classifies the profiles nono resolves: shipped is locked down, the variants are not", () => {
-    const nono = createNonoClient({ bin: NONO });
-    const shipped = summarizeProfile(nono.showProfile(SERVER_PROFILE));
+    const shipped = summarizeProfile(NONO, SERVER_PROFILE);
     assert.equal(shipped.egress, "allowlist");
     assert.equal(shipped.loopback, false, JSON.stringify(shipped.loopbackDomains));
     assert.ok(shipped.allowDomains.includes("api.githubcopilot.com"));
-    const wildcard = summarizeProfile(nono.showProfile(variantProfile(dir, "herdr-test-wildcard", ["*"])));
+    const wildcard = summarizeProfile(NONO, variantProfile(dir, "herdr-test-wildcard", ["*"]));
     assert.equal(wildcard.loopback, true);
-    const nip = summarizeProfile(nono.showProfile(variantProfile(dir, "herdr-test-nip", ["github.com", "127.0.0.1.nip.io"])));
+    const nip = summarizeProfile(NONO, variantProfile(dir, "herdr-test-nip", ["github.com", "127.0.0.1.nip.io"]));
     assert.deepEqual(nip.loopbackDomains.map((item) => item.domain), ["127.0.0.1.nip.io"]);
   });
 

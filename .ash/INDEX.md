@@ -4,4 +4,4 @@
 
 | Plan | ID | Status | Updated | Areas | Summary |
 |------|----|--------|---------|-------|---------|
-| [rust-rewrite](plans/261006-pwmvec-rust-rewrite/README.md) | 261006-pwmvec | In Progress | 2026-10-06 | runtime, overlay, distribution, tests | Rewrite the plugin from Node modules into one Rust binary (ratatui overlay, prebuilt releases), keeping state, output and test contracts intact. |
+| [rust-rewrite](plans/261006-pwmvec-rust-rewrite/README.md) | 261006-pwmvec | Done | 2026-10-06 | runtime, overlay, distribution, tests | Rewrite the plugin from Node modules into one Rust binary (ratatui overlay, prebuilt releases), keeping state, output and test contracts intact. |

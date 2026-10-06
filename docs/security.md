@@ -197,11 +197,18 @@ whose DNS records other people control.
 ## Trusting the plugin
 
 Installing a Herdr plugin runs its code as your user. This one runs only
-`node`, `nono`, `herdr` and `git`, always as argument lists, never as shell
-strings built from repository content. It never reads a secret (it reads the
+its own binary, `nono`, `herdr`, `git` and `sh` (for the install and key binding
+scripts), always as argument lists, never as shell strings built from repository
+content. It never reads a secret (it reads the
 host service's URL and pid, not its password) and grants nothing beyond the
 workspace on top of the profile. Review
-[`herdr-plugin.toml`](../herdr-plugin.toml) and `src/` before installing.
+[`herdr-plugin.toml`](../herdr-plugin.toml), `scripts/` and `rust/src/` before installing.
+
+The install step downloads `bin/herdr-nono` from the project's GitHub release
+and checks its sha256 against the `SHA256SUMS` of the same release. That guards
+against a damaged or truncated download, not against a compromised release. If
+you need more, build from source (`HERDR_NONO_NO_BUILD` unset and no release for
+your checkout, or `cargo build --release --locked`) after reading the code.
 
 Tested on Linux 7.0 with nono 0.78.0, OpenCode 2.0.20, Herdr 0.9.1 and the
 `nolabs-ai/opencode` pack 0.2.0. Results depend on the nono version and the

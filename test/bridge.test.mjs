@@ -4,8 +4,6 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import path from "node:path";
 import { test } from "node:test";
-import { parseBridgeArgs } from "../src/bridge-main.mjs";
-import { sandboxEnv, shellLaunch } from "../src/lifecycle.mjs";
 import { ROOT, createFixture, fakeBridgeProcess, mappingFor, runBridge } from "./helpers.mjs";
 
 const CLIENT_PROFILE = path.join(ROOT, "profiles", "herdr-opencode-client.json");
@@ -243,12 +241,6 @@ test("shell opens the configured shell without start-up files in a sandbox named
   f.cleanup();
 });
 
-test("shellLaunch knows bash, zsh and fish", () => {
-  assert.deepEqual(shellLaunch("bash", "herdr-opencode-abc123def456"), { argv: ["bash", "--noprofile", "--norc"], env: { PS1: "[nono:abc123] \\w \\$ " } });
-  assert.deepEqual(shellLaunch("/usr/bin/zsh", "s-1").argv, ["/usr/bin/zsh", "--no-rcs"]);
-  assert.deepEqual(shellLaunch("fish", "s-1"), { argv: ["fish", "--no-config"], env: {} });
-});
-
 test("a second bridge refuses while the first still runs", () => {
   const busy = fakeBridgeProcess("pane-1");
   const f = startedFixture({}, { bridgePid: busy.pid });
@@ -273,21 +265,4 @@ test("agents Herdr cannot detect are reported for the time they run", () => {
   assert.deepEqual(calls[report].slice(2, 9), ["pane-1", "--source", "nono.sandbox", "--agent", "tool", "--state", "unknown"]);
   assert.deepEqual(f.nonoRuns()[0].argv.slice(0, 3), ["run", "--profile", "opencode"]);
   f.cleanup();
-});
-
-test("sandboxEnv strips the NONO_* variables nono reads as flags that widen the profile", () => {
-  const env = sandboxEnv({ PATH: "/bin", NONO_ALLOW_DOMAIN: "localhost", NONO_NETWORK_PROFILE: "open", NONO_UPSTREAM_PROXY: "127.0.0.1:4096", NONO_ALLOW: "/", NONO_THEME: "dark" });
-  assert.deepEqual(env, { PATH: "/bin", NONO_THEME: "dark" });
-});
-
-test("sandboxEnv strips Herdr's and the host agents' socket variables and adds agentEnv", () => {
-  const env = sandboxEnv({ PATH: "/bin", HERDR_SOCKET_PATH: "/s", HERDR_PANE_ID: "p", SSH_AUTH_SOCK: "/a", DBUS_SESSION_BUS_ADDRESS: "unix:x", TMUX: "t", KEEP: "1" }, ["EXTRA=a=b"]);
-  assert.deepEqual(env, { PATH: "/bin", KEEP: "1", EXTRA: "a=b" });
-});
-
-test("parseBridgeArgs requires the plugin root and rejects unknown options", () => {
-  assert.equal(parseBridgeArgs(["start", "--state-dir", "s", "--config-dir", "c", "--pane-id", "p", "--plugin-root", "r"]).pluginRoot, "r");
-  assert.throws(() => parseBridgeArgs(["start", "--state-dir", "s", "--config-dir", "c", "--pane-id", "p"]), /pluginRoot/);
-  assert.throws(() => parseBridgeArgs(["start", "--sbx-bin", "x"]), /Unexpected bridge argument/);
-  assert.throws(() => parseBridgeArgs(["attach"]), /Unknown bridge mode/);
 });

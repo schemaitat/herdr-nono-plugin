@@ -14,21 +14,17 @@ docs port="8000" host="127.0.0.1":
 docs-build:
     {{mkdocs}} build --strict
 
-# Syntax check every module, then run the tests
+# Format check, lint and test the crate, then run the black-box tests against the debug build
 check:
-    npm run check
-
-# Run the tests
-test:
-    npm test
-
-# Format check, lint and test the Rust crate the way CI does
-rs-check:
     cargo fmt --check
     cargo clippy --all-targets -- -D warnings
     cargo test
+    npm run check
 
-# Run the Node black-box tests against the Rust binary (the parity suite)
-rs-parity:
-    cargo build
-    HERDR_NONO_IMPL=rust node --test test/actions.test.mjs test/bridge.test.mjs test/events.test.mjs test/overlay.test.mjs test/upgrade.test.mjs
+# Run the black-box tests (builds the debug binary first)
+test:
+    npm test
+
+# Build the release binary the way a source install does
+build:
+    cargo build --release --locked

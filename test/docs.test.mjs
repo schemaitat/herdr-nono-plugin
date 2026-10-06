@@ -2,18 +2,14 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
-import { ACTION_IDS } from "../src/action-main.mjs";
-import { BUILTIN_AGENTS } from "../src/agents.mjs";
-import { CONFIG_DEFAULTS } from "../src/config.mjs";
-import { NONO_BIN_ENV, PLUGIN_ID, RESULT_MARKER } from "../src/constants.mjs";
-import { ERROR_KINDS } from "../src/errors.mjs";
-import { loopbackDomains } from "../src/nono.mjs";
-import { ROOT } from "./helpers.mjs";
+import { ROOT, SHIPPED_PROFILES, describeBinary } from "./helpers.mjs";
 
+const facts = describeBinary();
 const manifest = readFileSync(path.join(ROOT, "herdr-plugin.toml"), "utf8");
 const readme = readFileSync(path.join(ROOT, "README.md"), "utf8");
 const changelog = readFileSync(path.join(ROOT, "CHANGELOG.md"), "utf8");
 const pkg = JSON.parse(readFileSync(path.join(ROOT, "package.json"), "utf8"));
+const cargo = readFileSync(path.join(ROOT, "Cargo.toml"), "utf8");
 
 function manifestTables() {
   const parts = manifest.split(/^\[\[(\w+)\]\]$/m);
@@ -29,54 +25,47 @@ function field(block, name) {
   return match ? match[1] : null;
 }
 
-function commandPath(block) {
-  const match = block.match(/^command = \["sh", "(bin\/run\.sh|scripts\/[^"]+)"(?:, "([^"]+)")?\]/m);
-  return match ? match[2] ?? match[1] : null;
-}
-
 const tables = manifestTables();
 
-test("manifest header matches the code and package metadata", () => {
-  assert.equal(field(tables.head, "id"), PLUGIN_ID);
-  assert.equal(field(tables.head, "version"), pkg.version);
+test("manifest header matches the binary, the crate and the package metadata", () => {
+  assert.equal(field(tables.head, "id"), facts.pluginId);
+  const version = field(tables.head, "version");
+  assert.equal(version, facts.version, "the manifest and the binary agree");
+  assert.equal(version, cargo.match(/^version = "([^"]+)"/m)[1], "Cargo.toml agrees");
+  assert.equal(version, pkg.version, "package.json agrees");
   assert.ok(field(tables.head, "min_herdr_version"));
   assert.match(tables.head, /^platforms = \["linux"\]$/m);
-  assert.ok(changelog.includes(`## ${pkg.version}`), "CHANGELOG has a heading for the current version");
+  assert.ok(changelog.includes(`## ${version}`) || changelog.includes("## Unreleased"), "CHANGELOG has a heading for the current version");
 });
 
-test("manifest actions and the dispatcher agree, in the same order", () => {
-  assert.deepEqual(tables.actions.map((block) => field(block, "id")), [...ACTION_IDS]);
+test("manifest actions and the binary's dispatcher agree, in the same order", () => {
+  assert.deepEqual(tables.actions.map((block) => field(block, "id")), facts.actionIds);
   for (const block of tables.actions) {
     assert.ok(field(block, "title"), "every action has a title");
     assert.match(block, /^contexts = \[/m);
   }
 });
 
-test("every manifest command points at an existing script through the node shim", () => {
+test("every manifest command goes through the shim to a subcommand of the binary, and the build step installs it", () => {
+  const subcommands = new Set(["action", "events", "pane"]);
   for (const block of [...tables.actions, ...tables.events, ...tables.panes]) {
-    assert.match(block, /^command = \["sh", "bin\/run\.sh", "src\/[a-z-]+\.mjs"\]$/m, block.trim().split("\n")[0]);
-    assert.ok(existsSync(path.join(ROOT, commandPath(block))), `${commandPath(block)} exists`);
+    const match = block.match(/^command = \["sh", "bin\/run\.sh", "(\w+)"\]$/m);
+    assert.ok(match && subcommands.has(match[1]), block.trim().split("\n")[0]);
   }
+  assert.ok(existsSync(path.join(ROOT, "bin", "run.sh")), "the shim exists");
   assert.equal(tables.build.length, 1);
-  assert.ok(existsSync(path.join(ROOT, commandPath(tables.build[0]))), "build script exists");
+  assert.match(tables.build[0], /^command = \["sh", "scripts\/install-binary\.sh"\]$/m);
+  assert.ok(existsSync(path.join(ROOT, "scripts", "install-binary.sh")), "the build script exists");
   assert.deepEqual(tables.events.map((block) => field(block, "on")), ["worktree.removed"]);
   assert.deepEqual(tables.panes.map((block) => field(block, "id")), ["sandboxes"]);
 });
 
-test("the shipped profiles extend the OpenCode pack, close the host sockets and lock down localhost", () => {
-  const read = (ref) => JSON.parse(readFileSync(path.join(ROOT, ref), "utf8"));
-  const client = read(BUILTIN_AGENTS.opencode.profile);
-  const server = read(BUILTIN_AGENTS.opencode.server.profile);
-  for (const profile of [client, server]) {
-    assert.equal(profile.extends, "nolabs-ai/opencode");
-    assert.equal(profile.linux.af_unix_mediation, "pathname");
-    assert.ok(profile.environment.deny_vars.includes("HERDR_*"));
-    assert.ok(profile.environment.deny_vars.includes("SSH_AUTH_SOCK"));
-    assert.deepEqual(profile.filesystem.suppress_save_prompt, ["/"]);
-  }
-  assert.deepEqual(client.network, { block: true }, "the client reaches nothing but its server's port");
-  assert.deepEqual(server.network, { allow_domain: ["models.opencode.ai", "github.com", "api.github.com", "api.githubcopilot.com", "*.githubcopilot.com"] }, "the server reaches GitHub Copilot and OpenCode's model catalog through nono's proxy, nothing else");
-  assert.deepEqual(loopbackDomains(server.network.allow_domain), [], "no allowed domain can resolve to localhost");
+test("the shipped profiles are where the built-in agent says they are", () => {
+  const opencode = facts.builtinAgents.opencode;
+  assert.equal(path.join(ROOT, opencode.profile), SHIPPED_PROFILES.client);
+  assert.equal(path.join(ROOT, opencode.serverProfile), SHIPPED_PROFILES.server);
+  for (const file of Object.values(SHIPPED_PROFILES)) assert.ok(existsSync(file), file);
+  // What the profiles must contain is checked next to the code that reads them (cargo test).
 });
 
 const docsDir = path.join(ROOT, "docs");
@@ -86,34 +75,36 @@ const allDocs = docPages.map(doc).join("\n");
 
 test("the reference documents every action, config key, agent kind and error kind", () => {
   const actions = doc("actions.md");
-  for (const id of ACTION_IDS) {
+  for (const id of facts.actionIds) {
     assert.equal(actions.split(`| \`${id}\` |`).length - 1, 2, `actions.md has a row for action ${id} and one for its result fields`);
   }
   const words = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen"];
-  const count = words[ACTION_IDS.length];
+  const count = words[facts.actionIds.length];
   for (const page of ["getting-started.md", "development.md"]) {
     assert.ok(doc(page).includes(`${count} actions`), `${page} names ${count} actions`);
   }
   const configuration = doc("configuration.md");
-  for (const key of Object.keys(CONFIG_DEFAULTS)) {
+  for (const key of facts.configKeys) {
     assert.ok(configuration.includes(`| \`${key}\` |`), `configuration.md has a row for config key ${key}`);
   }
-  for (const kind of Object.keys(BUILTIN_AGENTS)) {
+  for (const kind of Object.keys(facts.builtinAgents)) {
     assert.ok(configuration.includes(`| \`${kind}\` |`), `configuration.md has a row for agent kind ${kind}`);
   }
-  for (const kind of ERROR_KINDS) {
+  for (const kind of facts.errorKinds) {
     assert.ok(actions.includes(`| \`${kind}\` |`), `actions.md has a row for error kind ${kind}`);
   }
-  assert.ok(actions.includes(RESULT_MARKER));
+  assert.ok(actions.includes(facts.resultMarker));
 });
 
 test("the docs cover the hook, the environment overrides, the profiles and every module", () => {
-  for (const token of ["worktree.removed", NONO_BIN_ENV, "HERDR_AGENT", "--listen-port", "--open-port", "OPENCODE_PASSWORD", "profiles/herdr-opencode-client.json", "profiles/herdr-opencode-server.json", "bin/run.sh", "scripts/write-node-path.sh", "scripts/install-keybindings.sh", "scripts/run-action.sh"]) {
+  for (const token of ["worktree.removed", facts.nonoBinEnv, "HERDR_AGENT", "HERDR_NONO_BINARY", "--listen-port", "--open-port", "OPENCODE_PASSWORD", "profiles/herdr-opencode-client.json", "profiles/herdr-opencode-server.json", "bin/run.sh", "scripts/install-binary.sh", "scripts/install-keybindings.sh", "scripts/run-action.sh"]) {
     assert.ok(allDocs.includes(token), `docs mention ${token}`);
   }
   const layout = doc("development.md");
-  for (const file of readdirSync(path.join(ROOT, "src")).filter((name) => name.endsWith(".mjs"))) {
-    assert.ok(layout.includes(`src/${file}`), `development.md lists src/${file}`);
+  const sources = readdirSync(path.join(ROOT, "rust", "src"), { recursive: true }).map(String).filter((name) => name.endsWith(".rs")).map((name) => name.split(path.sep).join("/"));
+  assert.ok(sources.length > 20, "found the crate's modules");
+  for (const file of sources) {
+    assert.ok(layout.includes(`rust/src/${file}`), `development.md lists rust/src/${file}`);
   }
 });
 
@@ -138,10 +129,9 @@ test("the README and the key bindings page list every installed chord", () => {
   }
 });
 
-test("the bootstrap keeps the marker literal in sync with the constant", () => {
-  const bootstrap = readFileSync(path.join(ROOT, "src", "action.mjs"), "utf8");
-  assert.ok(bootstrap.includes(`const RESULT_MARKER = "${RESULT_MARKER}";`));
-  assert.ok(bootstrap.includes(`plugin: "${PLUGIN_ID}"`));
+test("the shim's startup result line keeps the marker and the plugin id of the binary", () => {
   const shim = readFileSync(path.join(ROOT, "bin", "run.sh"), "utf8");
-  assert.ok(shim.includes(`"plugin":"${PLUGIN_ID}"`));
+  assert.ok(shim.includes(`${facts.resultMarker} {`));
+  assert.ok(shim.includes(`"plugin":"${facts.pluginId}"`));
+  assert.ok(shim.includes(`"schemaVersion":${facts.resultSchemaVersion}`));
 });

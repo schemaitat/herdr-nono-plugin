@@ -3,15 +3,22 @@
 
 use serde_json::{json, Value};
 
+use crate::agents::builtin_agents;
 use crate::config::CONFIG_KEYS;
 use crate::constants::{
     ACTION_IDS, LIFECYCLE_STATES, MIN_NONO_VERSION, NONO_BIN_ENV, PLUGIN_ID, RESULT_MARKER,
     RESULT_SCHEMA_VERSION, STATE_VERSION,
 };
 use crate::errors::ERROR_KINDS;
+use crate::probes::LOOPBACK_NAMES;
 
 pub fn describe() -> Value {
+    let agents: serde_json::Map<String, Value> = builtin_agents()
+        .into_iter()
+        .map(|(kind, adapter)| (kind, json!({"profile": adapter.profile, "serverProfile": adapter.server.map(|server| server.profile)})))
+        .collect();
     json!({
+        "version": env!("CARGO_PKG_VERSION"),
         "pluginId": PLUGIN_ID,
         "resultMarker": RESULT_MARKER,
         "resultSchemaVersion": RESULT_SCHEMA_VERSION,
@@ -22,6 +29,8 @@ pub fn describe() -> Value {
         "configKeys": CONFIG_KEYS,
         "errorKinds": ERROR_KINDS,
         "lifecycleStates": LIFECYCLE_STATES,
+        "loopbackNames": LOOPBACK_NAMES,
+        "builtinAgents": agents,
     })
 }
 
@@ -30,7 +39,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn describe_equals_the_snapshot_generated_from_the_js_modules() {
+    fn describe_equals_the_snapshot() {
         let snapshot: Value =
             serde_json::from_str(include_str!("../tests/fixtures/describe.json")).unwrap();
         assert_eq!(describe(), snapshot);
