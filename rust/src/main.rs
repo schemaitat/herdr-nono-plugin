@@ -1,10 +1,7 @@
 //! The herdr-nono plugin binary: actions, the in-pane bridge, the event hook
 //! and the sandboxes overlay, one subcommand each.
 
-// The foundation modules are consumed by the clients, lifecycle and actions
-// that later phases of the rewrite add; drop this once the actions use them.
-#![allow(dead_code)]
-
+mod action;
 mod agents;
 mod bridge;
 mod config;
@@ -101,7 +98,7 @@ fn main() -> ExitCode {
             );
             ExitCode::SUCCESS
         }
-        Command::Action(_) => not_implemented("action"),
+        Command::Action(_) => exit_with(action::main(&context::process_env())),
         Command::Bridge(passthrough) => exit_with(bridge::run_bridge(
             &passthrough.args,
             &context::process_env(),

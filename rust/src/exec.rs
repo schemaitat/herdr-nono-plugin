@@ -25,10 +25,13 @@ const PIPE_GRACE: Duration = Duration::from_millis(1000);
 pub struct CancelToken(Arc<AtomicBool>);
 
 impl CancelToken {
+    #[allow(dead_code)]
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Abandons the commands that run under this token (the overlay cancels on a keypress).
+    #[allow(dead_code)]
     pub fn cancel(&self) {
         self.0.store(true, Ordering::SeqCst);
     }
@@ -54,6 +57,7 @@ impl CliOutput {
         format!("{}{}", self.stdout, self.stderr)
     }
 
+    #[cfg(test)]
     pub fn success(&self) -> bool {
         self.status == Some(0)
     }
@@ -77,6 +81,7 @@ pub struct RunOptions<'a> {
     pub cancel: Option<&'a CancelToken>,
 }
 
+#[cfg(test)]
 impl RunOptions<'_> {
     pub fn new(timeout: Duration) -> RunOptions<'static> {
         RunOptions {

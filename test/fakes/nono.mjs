@@ -90,7 +90,8 @@ if (command === "--version") {
   const inner = argv.slice(separator + 1);
   const nameIndex = argv.indexOf("--name");
   const name = nameIndex === -1 ? null : argv[nameIndex + 1];
-  if (inner.join(" ").includes("HERDR_NONO_PROBE")) {
+  // The Node escape probe is a script that names its result line; the Rust one is `<binary> probe <targets>`.
+  if (inner.join(" ").includes("HERDR_NONO_PROBE") || inner[1] === "probe") {
     const probe = process.env.FAKE_NONO_PROBE
       ? JSON.parse(process.env.FAKE_NONO_PROBE)
       : { herdrSocket: "denied", opencodeServicePort: "denied", loopbackCanary: "denied", loopbackViaProxy: "denied", systemdUser: "denied", sessionBus: "denied", sshAgent: "absent", gpgAgent: "absent", dockerSocket: "denied", opencodeServicePassword: "absent", sshKeys: "denied", homeDirectory: "denied", env: [], marker: true };

@@ -31,6 +31,16 @@ function entryCommand(entry, args = []) {
   return USE_RUST ? [RUST_BIN, [entry, ...args]] : [process.execPath, [path.join(ROOT, "src", `${entry}.mjs`), ...args]];
 }
 
+/**
+ * The words a typed bridge command starts with, for a mode. They differ by
+ * implementation on purpose: the Node version types `node src/bridge.mjs <mode>`,
+ * the Rust binary types `<binary> bridge <mode>`.
+ * @param {string} mode
+ */
+export function bridgeInvocation(mode) {
+  return USE_RUST ? `${RUST_BIN} bridge ${mode}` : `${process.execPath} ${path.join(ROOT, "src", "bridge.mjs")} ${mode}`;
+}
+
 export const FAKE_NONO = path.join(ROOT, "test", "fakes", "nono.mjs");
 export const FAKE_HERDR = path.join(ROOT, "test", "fakes", "herdr.mjs");
 export const FAKE_BIN = path.join(ROOT, "test", "fakes", "bin");

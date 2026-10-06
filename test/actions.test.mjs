@@ -6,7 +6,7 @@ import path from "node:path";
 import { test } from "node:test";
 import { bridgeStartTimeout, entryCwd, nonoVersionWarning, parseKeybindingReport } from "../src/action-main.mjs";
 import { summarizeProfile } from "../src/nono.mjs";
-import { FAKE_NONO, ROOT, createFixture, fakeBridgeProcess, fakeShellProcess, mappingFor, runAction } from "./helpers.mjs";
+import { FAKE_NONO, ROOT, bridgeInvocation, createFixture, fakeBridgeProcess, fakeShellProcess, mappingFor, runAction } from "./helpers.mjs";
 
 const NAME = "herdr-opencode-abc123def456";
 const PROFILE = path.join(ROOT, "profiles", "herdr-opencode-client.json");
@@ -132,7 +132,8 @@ test("start-agent splits a pane, records the mapping and types the bridge comman
   assert.deepEqual(calls[1], ["pane", "rename", "pane-new-1", `nono opencode ${result.sessionName.split("-").pop().slice(0, 6)}`]);
   const typed = calls.find((call) => call[1] === "run");
   assert.equal(typed[2], "pane-new-1");
-  assert.ok(typed[3].startsWith(`env HERDR_AGENT=opencode ${process.execPath} ${path.join(ROOT, "src", "bridge.mjs")} start --state-dir ${f.stateDir}`), typed[3]);
+  // The typed command names the running implementation's bridge entry point.
+  assert.ok(typed[3].startsWith(`env HERDR_AGENT=opencode ${bridgeInvocation("start")} --state-dir ${f.stateDir}`), typed[3]);
   assert.ok(typed[3].includes(`--plugin-root ${ROOT}`));
   assert.ok(typed[3].includes(`--nono-bin ${FAKE_NONO}`));
   assert.ok(calls.some((call) => call[0] === "notification"));
@@ -187,7 +188,7 @@ test("reconnect resumes the agent in its pane", () => {
   assert.equal(result.movedTo, null);
   const typed = f.herdrCalls().find((call) => call[1] === "run");
   assert.equal(typed[2], "w1:p1");
-  assert.match(typed[3], /bridge\.mjs connect /);
+  assert.ok(typed[3].includes(`${bridgeInvocation("connect")} `), typed[3]);
   f.cleanup();
 });
 
@@ -245,7 +246,7 @@ test("reconnect moves to a fresh pane when the typed command is swallowed", () =
   assert.ok(calls.some((call) => call[1] === "rename" && call[2] === "w1:p1" && /moved to pane-new-1/.test(call[3])));
   const runs = calls.filter((call) => call[1] === "run");
   assert.equal(runs.at(-1)[2], "pane-new-1");
-  assert.match(runs.at(-1)[3], /bridge\.mjs connect --state-dir .* --pane-id pane-new-1/);
+  assert.ok(runs.at(-1)[3].includes(`${bridgeInvocation("connect")} --state-dir `) && runs.at(-1)[3].includes(" --pane-id pane-new-1"), runs.at(-1)[3]);
   f.cleanup();
 });
 
@@ -257,7 +258,7 @@ test("open-shell splits below the focused pane and runs the shell bridge for the
   const calls = f.herdrCalls();
   assert.deepEqual(calls[0].slice(0, 5), ["pane", "split", "w1:p1", "--direction", "down"]);
   const typed = calls.find((call) => call[1] === "run");
-  assert.match(typed[3], /bridge\.mjs shell --state-dir .* --pane-id w1:p1 /);
+  assert.ok(typed[3].includes(`${bridgeInvocation("shell")} --state-dir `) && typed[3].includes(" --pane-id w1:p1 "), typed[3]);
   assert.doesNotMatch(typed[3], /HERDR_AGENT/);
   f.cleanup();
 });

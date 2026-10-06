@@ -74,14 +74,14 @@ pub fn port_of(url: &str) -> Option<u16> {
 #[serde(rename_all = "camelCase")]
 pub struct HostService {
     pub kind: String,
-    pub running: bool,
     pub pid: Option<u32>,
     pub url: Option<String>,
     pub port: Option<u16>,
-    pub listening: Option<bool>,
-    pub sandboxed: Option<bool>,
     pub state_file: String,
     pub config_file: String,
+    pub running: bool,
+    pub listening: Option<bool>,
+    pub sandboxed: Option<bool>,
 }
 
 /// Detects the host OpenCode service, or returns a record with `running: false`.

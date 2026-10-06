@@ -384,7 +384,6 @@ pub struct MappingSessions {
 #[derive(Debug)]
 pub struct LaunchOutcome {
     pub exit_code: i32,
-    pub entry: Option<Entry>,
 }
 
 #[derive(Debug, Serialize)]
@@ -398,7 +397,6 @@ pub struct StopOutcome {
 #[derive(Debug)]
 pub struct VerifyOutcome {
     pub entry: Option<Entry>,
-    pub agent: ResolvedAgent,
     pub report: VerificationReport,
 }
 
@@ -466,11 +464,6 @@ struct Preflight {
     host_service: Option<HostService>,
     warning: Option<String>,
     loopback_open: bool,
-}
-
-struct ToolsLoopback {
-    open: bool,
-    reason: Option<String>,
 }
 
 struct RunningServer {
@@ -1091,7 +1084,6 @@ impl Lifecycle {
             // The agent may well have exited cleanly on SIGTERM; the launch still failed.
             return Ok(LaunchOutcome {
                 exit_code: if exit_code == 0 { 1 } else { exit_code },
-                entry: get_pane_entry(state_dir, Some(pane_id))?,
             });
         }
         self.update(
@@ -1102,10 +1094,7 @@ impl Lifecycle {
             "{} exited with code {exit_code}. Use reconnect to resume it in the sandbox, or open-shell for a shell with the same policy.",
             agent.title
         ));
-        Ok(LaunchOutcome {
-            exit_code,
-            entry: get_pane_entry(state_dir, Some(pane_id))?,
-        })
+        Ok(LaunchOutcome { exit_code })
     }
 
     /// Verifies a freshly started session until it passes or the window ends,
@@ -1494,7 +1483,6 @@ impl Lifecycle {
         )?;
         Ok(VerifyOutcome {
             entry: get_pane_entry(state_dir, Some(pane_id))?,
-            agent,
             report,
         })
     }

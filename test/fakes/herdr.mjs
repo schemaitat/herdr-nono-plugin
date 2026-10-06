@@ -38,7 +38,8 @@ if (failing.includes(command) || failing.includes(argv.slice(0, 3).join(" "))) {
 if (command === "pane run" && process.env.FAKE_HERDR_BRIDGE_STARTS === "1" && process.env.HERDR_PLUGIN_STATE_DIR) {
   const entry = getPaneEntry(process.env.HERDR_PLUGIN_STATE_DIR, argv[2]);
   const commandText = String(argv[3] ?? "");
-  if (entry && commandText.includes("bridge.mjs") && !commandText.includes("bridge.mjs shell")) {
+  // The typed command is `node src/bridge.mjs <mode>` (Node) or `<binary> bridge <mode>` (Rust).
+  if (entry && /bridge(\.mjs)? (start|connect)\b/.test(commandText)) {
     const launchId = commandText.match(/--launch-id (\S+)/)?.[1] ?? null;
     savePaneEntry(process.env.HERDR_PLUGIN_STATE_DIR, argv[2], { ...entry, bridgeStartedAt: new Date().toISOString(), bridgeLaunchId: launchId });
   }

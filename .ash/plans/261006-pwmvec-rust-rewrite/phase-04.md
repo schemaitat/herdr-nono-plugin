@@ -2,7 +2,7 @@
 id: 261006-pwmvec
 slug: rust-rewrite
 phase: 4
-status: Proposed
+status: Done
 ---
 
 # Phase 4 — Actions
@@ -23,22 +23,22 @@ verify, stop and prune paths that actions expose. Depends only on Phase 3.
 
 ## Steps
 
-- [ ] TASK-023: `rust/src/action.rs`: dispatch on `HERDR_PLUGIN_ACTION_ID`,
+- [x] TASK-023: `rust/src/action.rs`: dispatch on `HERDR_PLUGIN_ACTION_ID`,
   focused-mapping resolution (focused pane, then the workspace's single
   mapping, then a single orphan), and `bridgeCommand`, which now types
   `<plugin-root>/bin/herdr-nono bridge <mode> ...` into the pane.
-- [ ] TASK-024: `rust/src/action.rs`: `start-agent`, `reconnect`,
+- [x] TASK-024: `rust/src/action.rs`: `start-agent`, `reconnect`,
   `open-shell` and `stop`, including the bridge start timeout and the
   launch-id handshake.
-- [ ] TASK-025: `rust/src/action.rs`: `info`, `list-sandboxes`,
+- [x] TASK-025: `rust/src/action.rs`: `info`, `list-sandboxes`,
   `verify-sandbox`, `prune-mappings` and `forget-mapping`.
-- [ ] TASK-026: `rust/src/action.rs`: `doctor` (nono version warning,
+- [x] TASK-026: `rust/src/action.rs`: `doctor` (nono version warning,
   profile resolution, Rust probe from Phase 2). The `node:` line in its
   output becomes `binary: <path> (<version>)`.
-- [ ] TASK-027: `rust/src/action.rs`: `install-keybindings` (parse the
+- [x] TASK-027: `rust/src/action.rs`: `install-keybindings` (parse the
   keybinding report, skip existing bindings, reload) and `sandboxes`, which
   opens the overlay pane and is still backed by the JS pane until Phase 5.
-- [ ] TASK-028: CI: run `actions.test.mjs` with `HERDR_NONO_IMPL=rust` and
+- [x] TASK-028: CI: run `actions.test.mjs` with `HERDR_NONO_IMPL=rust` and
   adjust only the assertions on intentional changes (the doctor `node` line),
   each with a comment.
 

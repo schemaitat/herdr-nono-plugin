@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use regex::Regex;
 use serde::Serialize;
-use serde_json::{Map, Value};
+use serde_json::Value;
 use url::Url;
 
 use crate::constants::{NONO_CALL_TIMEOUT_ENV, NONO_CALL_TIMEOUT_MS};
@@ -467,17 +467,20 @@ impl NonoClient {
     }
 
     /// A client for `bin` with this process's environment.
+    #[allow(dead_code)]
     pub fn from_process(bin: impl Into<String>) -> Self {
         Self::new(bin, process_env())
     }
 
     /// Calls made through this client end when the token is cancelled.
+    #[allow(dead_code)]
     pub fn with_cancel(mut self, cancel: CancelToken) -> Self {
         self.cancel = Some(cancel);
         self
     }
 
     /// Overrides the call timeout (the overlay uses a shorter one).
+    #[allow(dead_code)]
     pub fn with_timeout(mut self, timeout: Duration) -> Self {
         self.timeout = timeout;
         self
@@ -592,11 +595,6 @@ impl NonoClient {
             .with_output(shown)
         })
     }
-}
-
-/// An empty JSON object, for callers that build profiles by hand.
-pub fn empty_object() -> Map<String, Value> {
-    Map::new()
 }
 
 #[cfg(test)]

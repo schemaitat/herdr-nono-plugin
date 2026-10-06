@@ -80,11 +80,13 @@ impl HerdrClient {
     }
 
     /// A client for `bin` with this process's environment.
+    #[allow(dead_code)]
     pub fn from_process(bin: impl Into<String>) -> Self {
         Self::new(bin, process_env())
     }
 
     /// Calls made through this client end when the token is cancelled.
+    #[allow(dead_code)]
     pub fn with_cancel(mut self, cancel: CancelToken) -> Self {
         self.cancel = Some(cancel);
         self

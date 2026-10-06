@@ -42,20 +42,6 @@ impl ErrorKind {
             ErrorKind::Unknown => "unknown",
         }
     }
-
-    /// Parses a kind name; anything unrecognised is `unknown`.
-    pub fn parse(name: &str) -> ErrorKind {
-        match name {
-            "not-found" => ErrorKind::NotFound,
-            "permission" => ErrorKind::Permission,
-            "conflict" => ErrorKind::Conflict,
-            "config" => ErrorKind::Config,
-            "target" => ErrorKind::Target,
-            "startup" => ErrorKind::Startup,
-            "unconfined" => ErrorKind::Unconfined,
-            _ => ErrorKind::Unknown,
-        }
-    }
 }
 
 /// The fields of a [`PluginError`].
@@ -147,23 +133,23 @@ impl PluginError {
     }
 }
 
-/// The error kind of any error, defaulting to `unknown`.
-pub fn error_kind_of(error: &(dyn StdError + 'static)) -> ErrorKind {
-    error
-        .downcast_ref::<PluginError>()
-        .map_or(ErrorKind::Unknown, |error| error.kind)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn kinds_round_trip_and_unknown_names_fall_back() {
-        for name in ERROR_KINDS {
-            assert_eq!(ErrorKind::parse(name).as_str(), name);
-        }
-        assert_eq!(ErrorKind::parse("bogus"), ErrorKind::Unknown);
+    fn every_kind_has_its_listed_name() {
+        let kinds = [
+            ErrorKind::NotFound,
+            ErrorKind::Permission,
+            ErrorKind::Conflict,
+            ErrorKind::Config,
+            ErrorKind::Target,
+            ErrorKind::Startup,
+            ErrorKind::Unconfined,
+            ErrorKind::Unknown,
+        ];
+        assert_eq!(kinds.map(ErrorKind::as_str), ERROR_KINDS);
     }
 
     #[test]
@@ -172,6 +158,6 @@ mod tests {
             .with_cause(std::io::Error::from(std::io::ErrorKind::NotFound));
         assert!(error.cause_is_io(std::io::ErrorKind::NotFound));
         assert!(!error.cause_is_io(std::io::ErrorKind::PermissionDenied));
-        assert_eq!(error_kind_of(&error), ErrorKind::Startup);
+        assert_eq!(error.kind, ErrorKind::Startup);
     }
 }

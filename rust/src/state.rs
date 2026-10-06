@@ -33,6 +33,7 @@ pub struct State {
     pub panes: Vec<(String, Entry)>,
 }
 
+#[cfg(test)]
 impl State {
     pub fn get(&self, pane_id: &str) -> Option<&Entry> {
         self.panes

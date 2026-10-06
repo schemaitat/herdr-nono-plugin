@@ -57,6 +57,7 @@ fn truncate_utf16(text: &str, units: usize) -> String {
 }
 
 /// Extracts the parsed result payload from captured stdout, or `None` when absent.
+#[cfg(test)]
 pub fn parse_result_line(text: &str) -> Result<Option<Value>, serde_json::Error> {
     for line in text.split('\n') {
         if let Some(rest) = line.strip_prefix(RESULT_MARKER) {
