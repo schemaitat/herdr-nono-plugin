@@ -120,7 +120,7 @@ dependency for those tests only, never a runtime one.
 | 2 | External clients, verification and the probe | [phase-02.md](phase-02.md) | Done |
 | 3 | Lifecycle, bridge and event hook | [phase-03.md](phase-03.md) | Done |
 | 4 | Actions | [phase-04.md](phase-04.md) | Done |
-| 5 | ratatui overlay | [phase-05.md](phase-05.md) | Proposed |
+| 5 | ratatui overlay | [phase-05.md](phase-05.md) | Done |
 | 6 | Distribution and cut-over | [phase-06.md](phase-06.md) | Proposed |
 
 ## Affected Files

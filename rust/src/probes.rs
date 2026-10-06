@@ -824,12 +824,19 @@ mod tests {
 
     #[test]
     fn the_canary_listens_on_127_0_0_1_until_closed() {
-        let canary = start_canary().unwrap();
-        let port = canary.port;
-        assert!(TcpStream::connect(("127.0.0.1", port)).is_ok());
-        canary.close();
-        let refused = TcpStream::connect(("127.0.0.1", port)).unwrap_err();
-        assert_eq!(refused.kind(), std::io::ErrorKind::ConnectionRefused);
+        // Another test may be handed the freed port at once, so a few fresh canaries are tried.
+        let refused_after_close = (0..10).any(|_| {
+            let canary = start_canary().unwrap();
+            let port = canary.port;
+            assert!(
+                TcpStream::connect(("127.0.0.1", port)).is_ok(),
+                "the canary accepts while it runs"
+            );
+            canary.close();
+            TcpStream::connect(("127.0.0.1", port))
+                .is_err_and(|error| error.kind() == std::io::ErrorKind::ConnectionRefused)
+        });
+        assert!(refused_after_close, "a closed canary refuses connections");
     }
 
     /// A fake `nono` that prints the probe line FAKE_PROBE (or a clean one) when asked to run something.
@@ -941,11 +948,15 @@ mod tests {
 
     #[test]
     fn tcp_probes_report_allowed_and_refused() {
-        let canary = start_canary().unwrap();
-        assert_eq!(probe_tcp(canary.port), "allowed");
-        let port = canary.port;
-        canary.close();
-        assert_eq!(probe_tcp(port), "refused");
+        // Another test may be handed the freed port at once, so a few fresh canaries are tried.
+        let refused_after_close = (0..10).any(|_| {
+            let canary = start_canary().unwrap();
+            let port = canary.port;
+            assert_eq!(probe_tcp(port), "allowed");
+            canary.close();
+            probe_tcp(port) == "refused"
+        });
+        assert!(refused_after_close);
     }
 
     #[test]

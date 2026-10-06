@@ -140,6 +140,22 @@ fn kill_group(pid: u32) {
     }
 }
 
+/// Spawns the command, retrying a few times while the program is "text file
+/// busy": another thread of this process still has the script open for writing
+/// (it forked before closing it), which clears as soon as that child execs.
+fn spawn_retrying(command: &mut Command) -> std::io::Result<std::process::Child> {
+    let mut attempts = 0;
+    loop {
+        match command.spawn() {
+            Err(error) if error.raw_os_error() == Some(libc::ETXTBSY) && attempts < 20 => {
+                attempts += 1;
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            other => return other,
+        }
+    }
+}
+
 /// Runs `bin args...` with stdin closed and stdout and stderr captured.
 pub fn run_cli<S: AsRef<OsStr>>(
     bin: &str,
@@ -162,7 +178,7 @@ pub fn run_cli<S: AsRef<OsStr>>(
     if let Some(cwd) = options.cwd {
         command.current_dir(cwd);
     }
-    let mut child = command.spawn().map_err(ExecError::Spawn)?;
+    let mut child = spawn_retrying(&mut command).map_err(ExecError::Spawn)?;
     let stdout = drain(child.stdout.take().expect("piped stdout"));
     let stderr = drain(child.stderr.take().expect("piped stderr"));
     let started = Instant::now();
@@ -233,6 +249,32 @@ mod tests {
         assert!(shell("true", &RunOptions::new(Duration::from_secs(10)))
             .unwrap()
             .success());
+    }
+
+    #[test]
+    fn a_script_that_is_briefly_open_for_writing_is_retried_instead_of_failing() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let script = dir.path().join("tool");
+        std::fs::write(&script, "#!/bin/sh\nprintf ok\n").unwrap();
+        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+        // While a write handle is open, executing the file fails with ETXTBSY.
+        let handle = std::fs::OpenOptions::new()
+            .append(true)
+            .open(&script)
+            .unwrap();
+        let closer = std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(60));
+            drop(handle);
+        });
+        let output = run_cli(
+            script.to_str().unwrap(),
+            &[] as &[&str],
+            &RunOptions::new(Duration::from_secs(10)),
+        )
+        .unwrap();
+        closer.join().unwrap();
+        assert_eq!(output.stdout, "ok");
     }
 
     #[test]

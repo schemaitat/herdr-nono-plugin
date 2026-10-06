@@ -16,6 +16,7 @@ mod hostservice;
 mod lifecycle;
 mod naming;
 mod nono;
+mod pane;
 mod probes;
 mod procfs;
 mod result;
@@ -78,11 +79,6 @@ enum Command {
     Describe,
 }
 
-fn not_implemented(name: &str) -> ExitCode {
-    eprintln!("herdr-nono {name}: not implemented yet");
-    ExitCode::FAILURE
-}
-
 /// Exits with the code of a finished command, the way the Node scripts set `process.exitCode`.
 fn exit_with(code: i32) -> ExitCode {
     ExitCode::from(u8::try_from(code.rem_euclid(256)).unwrap_or(1))
@@ -104,7 +100,7 @@ fn main() -> ExitCode {
             &context::process_env(),
         )),
         Command::Events(_) => exit_with(events::handle_event(&context::process_env())),
-        Command::Pane(_) => not_implemented("pane"),
+        Command::Pane(passthrough) => exit_with(pane::run_pane_from_process(&passthrough.args)),
         Command::Probe(passthrough) => probes::probe_main(&passthrough.args),
         Command::ProbeRun {
             nono_bin,

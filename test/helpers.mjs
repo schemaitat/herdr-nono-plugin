@@ -32,6 +32,15 @@ function entryCommand(entry, args = []) {
 }
 
 /**
+ * The command and arguments that run the overlay pane entry point.
+ * @param {string[]} [args]
+ * @returns {[string, string[]]}
+ */
+export function paneCommand(args = []) {
+  return USE_RUST ? [RUST_BIN, ["pane", ...args]] : [process.execPath, [path.join(ROOT, "src", "sandboxes-pane.mjs"), ...args]];
+}
+
+/**
  * The words a typed bridge command starts with, for a mode. They differ by
  * implementation on purpose: the Node version types `node src/bridge.mjs <mode>`,
  * the Rust binary types `<binary> bridge <mode>`.

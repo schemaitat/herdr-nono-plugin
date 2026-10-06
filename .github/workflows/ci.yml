@@ -39,4 +39,4 @@ jobs:
         with:
           node-version: 22
       - run: cargo build
-      - run: HERDR_NONO_IMPL=rust node --test test/actions.test.mjs test/bridge.test.mjs test/events.test.mjs test/upgrade.test.mjs
+      - run: HERDR_NONO_IMPL=rust node --test test/actions.test.mjs test/bridge.test.mjs test/events.test.mjs test/overlay.test.mjs test/upgrade.test.mjs
