@@ -317,3 +317,6 @@ export function summarizeProfile(nonoBin, profile) {
   if (result.status !== 0) throw new Error(`profile-summary failed: ${result.stderr}`);
   return JSON.parse(result.stdout);
 }
+
+/** What the binary puts before every sandboxed command: nono appends the pack profile's `--standalone`, and this drops it again (see rust/src/nono.rs). */
+export const WRAP = ["sh", "-c", 'for a in "$@"; do shift; [ "$a" = "--standalone" ] || set -- "$@" "$a"; done; exec "$@"', "herdr-nono"];

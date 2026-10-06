@@ -123,7 +123,7 @@ setting. `doctor` and `test/integration-sandbox.test.mjs` check it; details in
 
 ## Status
 
-Version `0.1.0`. Verified with Herdr 0.9.1, nono 0.78.0 and OpenCode 2.0.20 on
+Version `0.1.0`. Verified with Herdr 0.9.1, nono 0.78.0 and OpenCode 2.0.22 on
 Linux 7.0. Not verified on a real host: the `worktree.removed` hook, custom
 agents, macOS (not declared in the manifest).
 

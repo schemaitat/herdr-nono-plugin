@@ -176,8 +176,26 @@ pub fn build_run_args(input: &RunArgs) -> Result<Vec<String>> {
     }
     args.extend(input.extra_args.iter().cloned());
     args.push("--".into());
-    args.extend(input.argv.iter().cloned());
+    args.extend(strip_inherited_args(input.argv));
     Ok(args)
+}
+
+/// The `sh -c` script that drops the arguments a profile appends to every command.
+const DROP_INHERITED_ARGS: &str =
+    r#"for a in "$@"; do shift; [ "$a" = "--standalone" ] || set -- "$@" "$a"; done; exec "$@""#;
+
+/// Wraps a command so that `--standalone` never reaches it. The pack profile
+/// `nolabs-ai/opencode` sets `command_args: ["--standalone"]`, which nono
+/// appends to whatever runs under a profile that extends it, and a profile
+/// cannot clear it. OpenCode 2.0.22 rejects it on `opencode serve` and next to
+/// `--server`, and a shell rejects it too. The wrapper `exec`s the real
+/// command, so the sandboxed process and its arguments are the plain ones.
+fn strip_inherited_args(argv: &[String]) -> Vec<String> {
+    let mut wrapped: Vec<String> = ["sh", "-c", DROP_INHERITED_ARGS, "herdr-nono"]
+        .map(String::from)
+        .to_vec();
+    wrapped.extend(argv.iter().cloned());
+    wrapped
 }
 
 /// Public wildcard DNS services whose names resolve to any address written in
@@ -609,6 +627,21 @@ mod tests {
     }
 
     #[test]
+    fn the_wrapper_drops_the_standalone_flag_nono_appends_and_keeps_every_other_argument() {
+        let mut argv =
+            strip_inherited_args(&owned(&["printf", "%s|", "serve", "--port", "4242", "a b"]));
+        argv.push("--standalone".into());
+        let out = std::process::Command::new(&argv[0])
+            .args(&argv[1..])
+            .output()
+            .unwrap();
+        assert_eq!(
+            String::from_utf8_lossy(&out.stdout),
+            "serve|--port|4242|a b|"
+        );
+    }
+
+    #[test]
     fn build_run_args_grants_the_workspace_root_explicitly_and_puts_the_agent_after_the_separator()
     {
         let args = build_run_args(&RunArgs {
@@ -640,6 +673,10 @@ mod tests {
                 "--memory",
                 "2G",
                 "--",
+                "sh",
+                "-c",
+                DROP_INHERITED_ARGS,
+                "herdr-nono",
                 "opencode",
                 "--standalone"
             ]

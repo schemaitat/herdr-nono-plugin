@@ -18,7 +18,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, before, describe, test } from "node:test";
 import { createServer } from "node:net";
-import { SHIPPED_PROFILES, createFixture, describeBinary, mappingFor, runBridge, runProbes, summarizeProfile } from "./helpers.mjs";
+import { SHIPPED_PROFILES, WRAP, createFixture, describeBinary, mappingFor, runBridge, runProbes, summarizeProfile } from "./helpers.mjs";
 
 const LOOPBACK_NAMES = describeBinary().loopbackNames;
 
@@ -109,7 +109,7 @@ function attempt(target) {
 async function attemptInSandbox(profile, targets) {
   const workspace = mkdtempSync(path.join(tmpdir(), "herdr-nono-egress-"));
   try {
-    const child = spawn(NONO, ["run", "--silent", "--profile", profile, "--name", "herdr-nono-egress-test", "--allow", workspace, "--", process.execPath, "-e", SANDBOX_SCRIPT, JSON.stringify(targets)], { cwd: workspace, stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn(NONO, ["run", "--silent", "--profile", profile, "--name", "herdr-nono-egress-test", "--allow", workspace, "--", ...WRAP, process.execPath, "-e", SANDBOX_SCRIPT, JSON.stringify(targets)], { cwd: workspace, stdio: ["ignore", "pipe", "pipe"] });
     let output = "";
     child.stdout.on("data", (chunk) => { output += chunk; });
     child.stderr.on("data", (chunk) => { output += chunk; });
