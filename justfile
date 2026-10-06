@@ -27,3 +27,8 @@ rs-check:
     cargo fmt --check
     cargo clippy --all-targets -- -D warnings
     cargo test
+
+# Run the Node black-box tests against the Rust binary (the parity suite)
+rs-parity:
+    cargo build
+    HERDR_NONO_IMPL=rust node --test test/bridge.test.mjs test/events.test.mjs test/upgrade.test.mjs

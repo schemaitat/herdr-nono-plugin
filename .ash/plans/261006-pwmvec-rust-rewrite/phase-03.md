@@ -2,7 +2,7 @@
 id: 261006-pwmvec
 slug: rust-rewrite
 phase: 3
-status: Proposed
+status: Done
 ---
 
 # Phase 3 — Lifecycle, bridge and event hook
@@ -24,24 +24,24 @@ only on Phase 2.
 
 ## Steps
 
-- [ ] TASK-017: `test/helpers.mjs`: add the `HERDR_NONO_IMPL=rust` toggle.
+- [x] TASK-017: `test/helpers.mjs`: add the `HERDR_NONO_IMPL=rust` toggle.
   When set, `runBridge`, `runEvents` and `runAction` spawn
   `target/debug/herdr-nono <subcommand>` instead of `node src/*.mjs`. Why:
   ALT-006. One switch turns the existing suite into the parity suite.
-- [ ] TASK-018: `rust/src/lifecycle.rs`: port process ownership
+- [x] TASK-018: `rust/src/lifecycle.rs`: port process ownership
   (`processOwns`, which accepts both `bridge.mjs` and `herdr-nono bridge`
   command lines, per RISK-002), path assertions, `sandboxEnv`,
   `findExecutable`, `pickFreePort`, shell launch, and `createLifecycle`
   (start, connect, shell, stop, wait), keeping the log lines.
-- [ ] TASK-019: `rust/src/bridge.rs`: argv parsing identical to
+- [x] TASK-019: `rust/src/bridge.rs`: argv parsing identical to
   `parseBridgeArgs`, mode dispatch, signal forwarding (SIGINT, SIGTERM,
   SIGHUP to the nono child), and exit codes.
-- [ ] TASK-020: `rust/src/events.rs`: the `worktree.removed` handler (stop
+- [x] TASK-020: `rust/src/events.rs`: the `worktree.removed` handler (stop
   agents in the removed worktree, forget mappings).
-- [ ] TASK-021: CI: run `bridge.test.mjs` and `events.test.mjs` with
+- [x] TASK-021: CI: run `bridge.test.mjs` and `events.test.mjs` with
   `HERDR_NONO_IMPL=rust` and fix divergences until both implementations pass
   the same assertions.
-- [ ] TASK-022: Manual check with real Herdr and nono. Start an agent with
+- [x] TASK-022: Manual check with real Herdr and nono. Start an agent with
   the JS action, which launches the JS bridge, and confirm that a Rust
   `stop` and `verify-sandbox` (invoked directly) recognise and act on it.
   Why: RISK-002 proven on a live upgrade path.

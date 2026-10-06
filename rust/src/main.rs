@@ -6,20 +6,24 @@
 #![allow(dead_code)]
 
 mod agents;
+mod bridge;
 mod config;
 mod constants;
 mod context;
 mod describe;
 mod errors;
+mod events;
 mod exec;
 mod herdr;
 mod hostservice;
+mod lifecycle;
 mod naming;
 mod nono;
 mod probes;
 mod procfs;
 mod result;
 mod shell;
+mod signals;
 mod state;
 mod util;
 mod verify;
@@ -82,6 +86,11 @@ fn not_implemented(name: &str) -> ExitCode {
     ExitCode::FAILURE
 }
 
+/// Exits with the code of a finished command, the way the Node scripts set `process.exitCode`.
+fn exit_with(code: i32) -> ExitCode {
+    ExitCode::from(u8::try_from(code.rem_euclid(256)).unwrap_or(1))
+}
+
 fn main() -> ExitCode {
     match Cli::parse().command {
         Command::Describe => {
@@ -93,8 +102,11 @@ fn main() -> ExitCode {
             ExitCode::SUCCESS
         }
         Command::Action(_) => not_implemented("action"),
-        Command::Bridge(_) => not_implemented("bridge"),
-        Command::Events(_) => not_implemented("events"),
+        Command::Bridge(passthrough) => exit_with(bridge::run_bridge(
+            &passthrough.args,
+            &context::process_env(),
+        )),
+        Command::Events(_) => exit_with(events::handle_event(&context::process_env())),
         Command::Pane(_) => not_implemented("pane"),
         Command::Probe(passthrough) => probes::probe_main(&passthrough.args),
         Command::ProbeRun {

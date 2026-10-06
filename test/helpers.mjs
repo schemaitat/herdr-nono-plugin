@@ -13,6 +13,24 @@ import { loadState, savePaneEntry } from "../src/state.mjs";
 /** Absolute plugin root. */
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
+/**
+ * Which implementation the black-box runners start: the Node scripts under
+ * src/ (default) or the Rust binary (HERDR_NONO_IMPL=rust), at
+ * HERDR_NONO_RUST_BIN or target/debug/herdr-nono.
+ */
+export const USE_RUST = process.env.HERDR_NONO_IMPL === "rust";
+export const RUST_BIN = process.env.HERDR_NONO_RUST_BIN || path.join(ROOT, "target", "debug", "herdr-nono");
+
+/**
+ * The command and arguments that run one entry point.
+ * @param {"action"|"bridge"|"events"} entry
+ * @param {string[]} [args]
+ * @returns {[string, string[]]}
+ */
+function entryCommand(entry, args = []) {
+  return USE_RUST ? [RUST_BIN, [entry, ...args]] : [process.execPath, [path.join(ROOT, "src", `${entry}.mjs`), ...args]];
+}
+
 export const FAKE_NONO = path.join(ROOT, "test", "fakes", "nono.mjs");
 export const FAKE_HERDR = path.join(ROOT, "test", "fakes", "herdr.mjs");
 export const FAKE_BIN = path.join(ROOT, "test", "fakes", "bin");
@@ -142,7 +160,8 @@ export function createFixture({ config = {}, sessions = [], panes = {} } = {}) {
  * @param {{context?: Record<string, unknown>, env?: Record<string, string>}} [options]
  */
 export function runAction(fixture, actionId, { context = {}, env = {} } = {}) {
-  const result = spawnSync(process.execPath, [path.join(ROOT, "src", "action.mjs")], {
+  const [command, args] = entryCommand("action");
+  const result = spawnSync(command, args, {
     cwd: ROOT,
     encoding: "utf8",
     env: fixture.env({ HERDR_PLUGIN_ACTION_ID: actionId, HERDR_PLUGIN_CONTEXT_JSON: JSON.stringify(context), ...env }),
@@ -158,7 +177,8 @@ export function runAction(fixture, actionId, { context = {}, env = {} } = {}) {
  * @param {{env?: Record<string, string>, args?: string[]}} [options]
  */
 export function runBridge(fixture, mode, paneId, { env = {}, args = [] } = {}) {
-  const result = spawnSync(process.execPath, [path.join(ROOT, "src", "bridge.mjs"), mode, "--state-dir", fixture.stateDir, "--config-dir", fixture.configDir, "--pane-id", paneId, "--plugin-root", ROOT, "--herdr-bin", FAKE_HERDR, ...args], {
+  const [command, commandArgs] = entryCommand("bridge", [mode, "--state-dir", fixture.stateDir, "--config-dir", fixture.configDir, "--pane-id", paneId, "--plugin-root", ROOT, "--herdr-bin", FAKE_HERDR, ...args]);
+  const result = spawnSync(command, commandArgs, {
     cwd: ROOT,
     encoding: "utf8",
     env: fixture.env(env),
@@ -175,7 +195,8 @@ export function runBridge(fixture, mode, paneId, { env = {}, args = [] } = {}) {
  * @param {{env?: Record<string, string>}} [options]
  */
 export function runEvent(fixture, eventName, payload, { env = {} } = {}) {
-  const result = spawnSync(process.execPath, [path.join(ROOT, "src", "events.mjs")], {
+  const [command, args] = entryCommand("events");
+  const result = spawnSync(command, args, {
     cwd: ROOT,
     encoding: "utf8",
     env: fixture.env({ HERDR_PLUGIN_EVENT: eventName, HERDR_PLUGIN_EVENT_JSON: JSON.stringify(payload), ...env }),

@@ -26,7 +26,7 @@ use crate::context::Env;
 use crate::errors::{ErrorKind, PluginError, Result};
 use crate::exec::{run_cli, ExecError, RunOptions};
 use crate::hostservice::{home_dir, opencode_service_files};
-use crate::util::{js_string, random_hex};
+use crate::util::{base64, js_string, random_hex};
 
 /// The line the in-sandbox probe prints before it exits.
 pub const PROBE_MARKER: &str = "HERDR_NONO_PROBE ";
@@ -446,30 +446,6 @@ fn probe_tcp(port: u16) -> String {
             _ => errno_name(&error),
         },
     }
-}
-
-/// Standard base64 with padding.
-fn base64(bytes: &[u8]) -> String {
-    const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let mut out = String::new();
-    for chunk in bytes.chunks(3) {
-        let n = (u32::from(chunk[0]) << 16)
-            | (u32::from(*chunk.get(1).unwrap_or(&0)) << 8)
-            | u32::from(*chunk.get(2).unwrap_or(&0));
-        out.push(ALPHABET[(n >> 18) as usize & 63] as char);
-        out.push(ALPHABET[(n >> 12) as usize & 63] as char);
-        out.push(if chunk.len() > 1 {
-            ALPHABET[(n >> 6) as usize & 63] as char
-        } else {
-            '='
-        });
-        out.push(if chunk.len() > 2 {
-            ALPHABET[n as usize & 63] as char
-        } else {
-            '='
-        });
-    }
-    out
 }
 
 fn percent_decode(text: &str) -> String {
