@@ -272,7 +272,7 @@ pub fn draw(frame: &mut Frame, view: &ViewState, ctx: &DrawContext) {
             || "Profiles · next launch".to_string(),
             |row| format!("Profiles · agent {}", row.pane_id),
         );
-        let panel_area = take(shown.len() + 2);
+        let panel_area = take(room.max(shown.len()) + 2);
         frame.render_widget(
             Paragraph::new(shown).block(framed(titled(&title_text, Style::new()), Tone::Yellow)),
             panel_area,
@@ -734,10 +734,9 @@ fn draw_sandboxes(
     } else {
         Vec::new()
     };
-    // Only as tall as the longer process list needs; the rest of the screen stays free.
-    let body_height = ((sandbox_height - 2)
-        .min(left_body.len().max(right_body.len()).max(2) as i64))
-    .max(1) as usize;
+    // The boxes take all the height the table and the details leave, so the screen is filled;
+    // a longer process list is clipped with a count.
+    let body_height = (sandbox_height - 2).max(1) as usize;
     let clip = |mut body: Vec<Line<'static>>, inner: usize| -> Vec<Line<'static>> {
         if body.len() > body_height {
             let hidden = body.len() - body_height + 1;
@@ -1575,24 +1574,35 @@ mod tests {
     }
 
     #[test]
-    fn on_a_tall_screen_the_hints_sit_under_the_content_not_at_the_bottom() {
+    fn on_a_tall_screen_the_content_fills_the_height_and_the_hints_stay_on_the_last_row() {
         let (lines, _) = screen(&view(sample_rows()), 110, 60);
-        let at = lines
-            .iter()
-            .position(|line| line.contains("q  quit"))
-            .expect("hints");
-        assert!(at < 40, "the hints are at line {at} of 60");
         assert!(
-            lines[at - 1].contains("refreshes every"),
-            "the status line is just above: {}",
-            lines[at - 1]
-        );
-        // With no spare room they stay on the last row.
-        let (cramped, _) = screen(&view(sample_rows()), 110, 14);
-        assert!(
-            cramped.last().unwrap().contains("q  quit"),
+            lines.last().unwrap().contains("q  quit"),
             "{}",
-            cramped.join("\n")
+            lines.join("\n")
+        );
+        let details = lines
+            .iter()
+            .position(|line| line.contains("┌─ Details"))
+            .expect("details");
+        assert!(
+            details > 40,
+            "the sandbox boxes grew to fill the screen; details start at line {details}"
+        );
+        assert!(
+            lines[58].contains("refreshes every"),
+            "the status line is just above the hints: {}",
+            lines[58]
+        );
+        let blank_run = lines
+            .windows(3)
+            .filter(|w| w.iter().all(|line| line.is_empty()))
+            .count();
+        assert_eq!(
+            blank_run,
+            0,
+            "no stretch of blank rows:\n{}",
+            lines.join("\n")
         );
     }
 }
