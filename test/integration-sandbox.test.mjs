@@ -18,9 +18,7 @@ import { createServer } from "node:net";
 import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import { after, before, describe, test } from "node:test";
-import { BUILTIN_AGENTS } from "../src/agents.mjs";
-import { runProbes } from "../src/probes.mjs";
-import { ROOT } from "./helpers.mjs";
+import { SHIPPED_PROFILES, runProbes } from "./helpers.mjs";
 
 /** An executable as an absolute path, or the bare name when it is not on PATH. */
 function which(bin) {
@@ -31,10 +29,7 @@ function which(bin) {
 const NONO = which(process.env.HERDR_NONO_BIN || "nono");
 const HERDR = which(process.env.HERDR_BIN_PATH || "herdr");
 const HERDR_SOCKET = process.env.HERDR_SOCKET_PATH || path.join(process.env.XDG_CONFIG_HOME || path.join(homedir(), ".config"), "herdr", "herdr.sock");
-const PROFILES = {
-  server: path.join(ROOT, BUILTIN_AGENTS.opencode.server.profile),
-  client: path.join(ROOT, BUILTIN_AGENTS.opencode.profile),
-};
+const PROFILES = SHIPPED_PROFILES;
 /** A pane id Herdr never hands out: a reached server answers pane_not_found. */
 const MISSING_PANE = "zz:p999999";
 

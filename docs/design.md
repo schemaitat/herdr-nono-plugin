@@ -5,10 +5,15 @@
 Herdr runs plugin actions as short-lived processes without a terminal, so
 anything interactive lives in a pane:
 
-- **The action** (`src/action.mjs`) is what Herdr spawns. It resolves the
-  context, splits the pane, stores a mapping and prints the result line.
-- **The bridge** (`src/bridge.mjs`) is typed into the new pane. It starts both
-  sandboxes, verifies them, and records the exit.
+- **The action** (`herdr-nono action`, started by Herdr through `bin/run.sh`)
+  resolves the context, splits the pane, stores a mapping and prints the
+  result line.
+- **The bridge** (`herdr-nono bridge`) is typed into the new pane. It starts
+  both sandboxes, verifies them, and records the exit.
+
+Both are subcommands of the one binary the plugin installs as `bin/herdr-nono`;
+so are the overlay (`herdr-nono pane`) and the `worktree.removed` hook
+(`herdr-nono events`).
 
 ## Launch sequence
 

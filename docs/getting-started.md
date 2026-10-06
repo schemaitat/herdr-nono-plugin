@@ -8,7 +8,7 @@
 | [Herdr](https://herdr.dev) | 0.9.0 or newer |
 | [nono](https://nono.sh) | 0.78 or newer, with the OpenCode pack (`nono pull nolabs-ai/opencode`) |
 | [OpenCode](https://opencode.ai) | 2.x on the `PATH` Herdr gives plugins, signed in to a provider |
-| Node.js | 20 or newer; no dependencies |
+| Rust | Only to build from source: the install step downloads a prebuilt binary (x86_64 or aarch64 Linux) and builds with `cargo` only when there is none |
 
 ## Install
 
@@ -19,7 +19,14 @@ herdr plugin action list --plugin nono.sandbox          # twelve actions
 ```
 
 Herdr clones the repository and runs its build step,
-`scripts/write-node-path.sh`, which records where `node` lives.
+`scripts/install-binary.sh`. It downloads the release binary that matches the
+plugin version into `bin/herdr-nono`, checks its sha256 against the release's
+`SHA256SUMS`, and runs it once to be sure it works here. With no matching
+release (an unreleased checkout) or no network it builds from source with
+`cargo build --release --locked` instead, when `cargo` is on the `PATH` or in
+`~/.cargo/bin`. Run it again any time with `sh scripts/install-binary.sh`;
+`HERDR_NONO_NO_BUILD=1` never builds. Nothing but the binary runs at runtime:
+no Node.js, no `npm`.
 
 ## Check the host
 
@@ -66,7 +73,7 @@ For development. `herdr plugin link` skips the build step:
 
 ```bash
 git clone https://github.com/schemaitat/herdr-nono-plugin.git
-cd herdr-nono-plugin && sh scripts/write-node-path.sh
+cd herdr-nono-plugin && sh scripts/install-binary.sh
 herdr plugin link "$PWD"
 sh scripts/run-action.sh doctor
 ```

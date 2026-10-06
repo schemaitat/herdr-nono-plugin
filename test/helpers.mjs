@@ -7,11 +7,43 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSy
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseResultLine } from "../src/result.mjs";
-import { loadState, savePaneEntry } from "../src/state.mjs";
+import { loadState, parseResultLine, savePaneEntry } from "./support/state.mjs";
 
 /** Absolute plugin root. */
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+
+/**
+ * The plugin binary the black-box runners start: HERDR_NONO_BINARY, else the
+ * debug build (cargo build).
+ */
+export const BINARY = process.env.HERDR_NONO_BINARY || path.join(ROOT, "target", "debug", "herdr-nono");
+
+/**
+ * The command and arguments that run one entry point of the plugin.
+ * @param {"action"|"bridge"|"events"|"pane"} entry
+ * @param {string[]} [args]
+ * @returns {[string, string[]]}
+ */
+export function entryCommand(entry, args = []) {
+  return [BINARY, [entry, ...args]];
+}
+
+/**
+ * The command and arguments that run the overlay pane entry point.
+ * @param {string[]} [args]
+ * @returns {[string, string[]]}
+ */
+export function paneCommand(args = []) {
+  return entryCommand("pane", args);
+}
+
+/**
+ * The words a typed bridge command starts with, for a mode.
+ * @param {string} mode
+ */
+export function bridgeInvocation(mode) {
+  return `${BINARY} bridge ${mode}`;
+}
 
 export const FAKE_NONO = path.join(ROOT, "test", "fakes", "nono.mjs");
 export const FAKE_HERDR = path.join(ROOT, "test", "fakes", "herdr.mjs");
@@ -136,13 +168,14 @@ export function createFixture({ config = {}, sessions = [], panes = {} } = {}) {
 }
 
 /**
- * Runs `src/action.mjs` for an action id.
+ * Runs `herdr-nono action` for an action id.
  * @param {ReturnType<typeof createFixture>} fixture
  * @param {string} actionId
  * @param {{context?: Record<string, unknown>, env?: Record<string, string>}} [options]
  */
 export function runAction(fixture, actionId, { context = {}, env = {} } = {}) {
-  const result = spawnSync(process.execPath, [path.join(ROOT, "src", "action.mjs")], {
+  const [command, args] = entryCommand("action");
+  const result = spawnSync(command, args, {
     cwd: ROOT,
     encoding: "utf8",
     env: fixture.env({ HERDR_PLUGIN_ACTION_ID: actionId, HERDR_PLUGIN_CONTEXT_JSON: JSON.stringify(context), ...env }),
@@ -151,14 +184,15 @@ export function runAction(fixture, actionId, { context = {}, env = {} } = {}) {
 }
 
 /**
- * Runs `src/bridge.mjs` in a mode for a pane.
+ * Runs `herdr-nono bridge` in a mode for a pane.
  * @param {ReturnType<typeof createFixture>} fixture
  * @param {string} mode
  * @param {string} paneId
  * @param {{env?: Record<string, string>, args?: string[]}} [options]
  */
 export function runBridge(fixture, mode, paneId, { env = {}, args = [] } = {}) {
-  const result = spawnSync(process.execPath, [path.join(ROOT, "src", "bridge.mjs"), mode, "--state-dir", fixture.stateDir, "--config-dir", fixture.configDir, "--pane-id", paneId, "--plugin-root", ROOT, "--herdr-bin", FAKE_HERDR, ...args], {
+  const [command, commandArgs] = entryCommand("bridge", [mode, "--state-dir", fixture.stateDir, "--config-dir", fixture.configDir, "--pane-id", paneId, "--plugin-root", ROOT, "--herdr-bin", FAKE_HERDR, ...args]);
+  const result = spawnSync(command, commandArgs, {
     cwd: ROOT,
     encoding: "utf8",
     env: fixture.env(env),
@@ -168,14 +202,15 @@ export function runBridge(fixture, mode, paneId, { env = {}, args = [] } = {}) {
 }
 
 /**
- * Runs `src/events.mjs` with an event payload.
+ * Runs `herdr-nono events` with an event payload.
  * @param {ReturnType<typeof createFixture>} fixture
  * @param {string} eventName
  * @param {Record<string, unknown>} payload
  * @param {{env?: Record<string, string>}} [options]
  */
 export function runEvent(fixture, eventName, payload, { env = {} } = {}) {
-  const result = spawnSync(process.execPath, [path.join(ROOT, "src", "events.mjs")], {
+  const [command, args] = entryCommand("events");
+  const result = spawnSync(command, args, {
     cwd: ROOT,
     encoding: "utf8",
     env: fixture.env({ HERDR_PLUGIN_EVENT: eventName, HERDR_PLUGIN_EVENT_JSON: JSON.stringify(payload), ...env }),
@@ -196,7 +231,7 @@ function fakeProcess(words) {
  * @param {string} paneId
  */
 export function fakeBridgeProcess(paneId) {
-  return fakeProcess([path.join("src", "bridge.mjs"), "connect", "--pane-id", paneId]);
+  return fakeProcess([path.join(ROOT, "bin", "herdr-nono"), "bridge", "connect", "--pane-id", paneId]);
 }
 
 /**
@@ -204,7 +239,7 @@ export function fakeBridgeProcess(paneId) {
  * @param {string} paneId
  */
 export function fakeShellProcess(paneId) {
-  return fakeProcess([path.join("src", "bridge.mjs"), "shell", "--pane-id", paneId]);
+  return fakeProcess([path.join(ROOT, "bin", "herdr-nono"), "bridge", "shell", "--pane-id", paneId]);
 }
 
 /**
@@ -232,32 +267,53 @@ export function mappingFor(fixture, overrides = {}) {
   };
 }
 
+/** The shipped nono profiles. */
+export const SHIPPED_PROFILES = {
+  client: path.join(ROOT, "profiles", "herdr-opencode-client.json"),
+  server: path.join(ROOT, "profiles", "herdr-opencode-server.json"),
+};
+
+let described = null;
+
 /**
- * Writes a minimal fake /proc tree: one directory per process with `stat`,
- * `status`, `cmdline` and `environ`, plus `net/tcp` and per-process `fd`
- * symlinks for socket inodes.
- * @param {string} root
- * @param {Array<{pid: number, ppid: number, argv: string[], noNewPrivs?: boolean, capFile?: boolean, environ?: boolean, sockets?: string[]}>} processes
- * @param {{tcp?: string[]}} [options] Extra lines for /proc/net/tcp (after the header).
+ * The facts `herdr-nono describe` prints: action ids, config keys, error kinds,
+ * the version, the loopback names the probe tries and the built-in agents.
+ * @returns {Record<string, any>}
  */
-export function writeFakeProc(root, processes, { tcp = [] } = {}) {
-  mkdirSync(path.join(root, "self"), { recursive: true });
-  writeFileSync(path.join(root, "self", "status"), "Name:\tnode\n");
-  for (const proc of processes) {
-    const dir = path.join(root, String(proc.pid));
-    mkdirSync(path.join(dir, "fd"), { recursive: true });
-    const name = path.basename(proc.argv[0] ?? "x");
-    writeFileSync(path.join(dir, "stat"), `${proc.pid} (${name}) S ${proc.ppid} 1 1 0 -1 0 0 0 0 0 0 0 0 0 20 0 1 0 12345 0 0\n`);
-    writeFileSync(path.join(dir, "status"), `Name:\t${name}\nPPid:\t${proc.ppid}\nNoNewPrivs:\t${proc.noNewPrivs === false ? 0 : 1}\nSeccomp:\t2\n`);
-    writeFileSync(path.join(dir, "cmdline"), `${proc.argv.join("\0")}\0`);
-    if (proc.environ !== false) {
-      writeFileSync(path.join(dir, "environ"), `PATH=/usr/bin\0${proc.capFile === false ? "" : "NONO_CAP_FILE=/tmp/.nono-x.json\0"}`);
-    }
-    for (const [index, inode] of (proc.sockets ?? []).entries()) {
-      spawnSync("ln", ["-s", `socket:[${inode}]`, path.join(dir, "fd", String(index + 3))]);
-    }
+export function describeBinary() {
+  if (described === null) {
+    const result = spawnSync(BINARY, ["describe"], { encoding: "utf8" });
+    if (result.status !== 0) throw new Error(`herdr-nono describe failed (is the binary built? cargo build): ${result.stderr}`);
+    described = JSON.parse(result.stdout);
   }
-  mkdirSync(path.join(root, "net"), { recursive: true });
-  writeFileSync(path.join(root, "net", "tcp"), ["  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode", ...tcp].join("\n") + "\n");
-  writeFileSync(path.join(root, "net", "tcp6"), "  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode\n");
+  return described;
+}
+
+/**
+ * Runs the escape probe in a throwaway sandbox through the binary
+ * (`herdr-nono probe-run`) and returns `{targets, checks}`.
+ * @param {{nonoBin: string, profile: string, env?: NodeJS.ProcessEnv}} input
+ * @returns {Promise<{targets: Record<string, any>, checks: Array<{check: string, result: string, ok: boolean, severity: string, why: string}>}>}
+ */
+export function runProbes({ nonoBin, profile, env = process.env }) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(BINARY, ["probe-run", "--nono-bin", nonoBin, "--profile", profile], { env, stdio: ["ignore", "pipe", "pipe"] });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (chunk) => { stdout += chunk; });
+    child.stderr.on("data", (chunk) => { stderr += chunk; });
+    child.once("close", (status) => (status === 0 ? resolve(JSON.parse(stdout)) : reject(new Error(stderr.trim() || `probe-run exited ${status}`))));
+  });
+}
+
+/**
+ * What the plugin makes of a profile nono resolves (`herdr-nono profile-summary`).
+ * @param {string} nonoBin
+ * @param {string} profile
+ * @returns {Record<string, any>}
+ */
+export function summarizeProfile(nonoBin, profile) {
+  const result = spawnSync(BINARY, ["profile-summary", "--nono-bin", nonoBin, profile], { encoding: "utf8" });
+  if (result.status !== 0) throw new Error(`profile-summary failed: ${result.stderr}`);
+  return JSON.parse(result.stdout);
 }

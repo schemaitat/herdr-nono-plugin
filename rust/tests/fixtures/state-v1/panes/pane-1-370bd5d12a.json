@@ -1,0 +1,38 @@
+{
+  "sessionName": "herdr-opencode-abc123def456",
+  "workspaceId": "w1",
+  "agentKind": "opencode",
+  "localPath": "/work/repo",
+  "workdir": "/work/repo",
+  "profile": "/plugin/profiles/herdr-opencode-client.json",
+  "serverProfile": "/plugin/profiles/herdr-opencode-server.json",
+  "lifecycleState": "running",
+  "createdAt": "2026-09-29T00:00:00.000Z",
+  "sourcePaneId": "pane-0",
+  "launchCount": 2,
+  "lastError": null,
+  "verification": {
+    "ok": true,
+    "checked": 3,
+    "notes": [
+      "a",
+      "ü"
+    ]
+  },
+  "bridgePid": 4242,
+  "bridgeToken": "linux:12345",
+  "shellPids": [
+    {
+      "pid": 5,
+      "token": "linux:9",
+      "paneId": "pane-1"
+    }
+  ],
+  "extraFromFuture": {
+    "nested": []
+  },
+  "version": 1,
+  "paneId": "pane-1",
+  "updatedAt": "2026-10-06T18:43:54.386Z",
+  "revision": "f4f46e1352c8"
+}

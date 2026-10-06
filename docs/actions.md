@@ -40,7 +40,7 @@ Fields on success, besides `schemaVersion`, `plugin`, `action` and `ok`:
 
 | Action | Fields |
 | --- | --- |
-| `doctor` | `nonoBin`, `nonoVersion`, `versionWarning`, `node`, `pluginRoot`, `stateDir`, `configDir`, `agentKind`, `agentBinary`, `launchArgv`, `serverArgv`, `profile`, `serverProfile`, `hostService`, `probes`, `probeError`, `warnings` |
+| `doctor` | `nonoBin`, `nonoVersion`, `versionWarning`, `binary`, `binaryVersion`, `pluginRoot`, `stateDir`, `configDir`, `agentKind`, `agentBinary`, `launchArgv`, `serverArgv`, `profile`, `serverProfile`, `hostService`, `probes`, `probeError`, `warnings` |
 | `install-keybindings` | `configPath`, `added`, `existing`, `warnings`, `reloaded` |
 | `start-agent` | `paneId`, `sourcePaneId`, `sessionName`, `agentKind`, `localPath`, `workdir`, `profile`, `serverProfile`, `launchArgv`, `serverArgv`, `openIn` |
 | `reconnect` | `paneId`, `sessionName`, `agentKind`, `mode`, `argv`, `adoptedFrom`, `movedTo` |

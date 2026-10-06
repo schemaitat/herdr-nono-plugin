@@ -1,0 +1,42 @@
+{
+  "sessionDigest": [
+    {
+      "localPath": "/tmp/repo",
+      "paneId": "pane-1",
+      "nonce": "0011223344556677",
+      "digest": "1ca1b4a727ef"
+    },
+    {
+      "localPath": "/home/dev/ü/repo",
+      "paneId": null,
+      "nonce": "ffffffffffffffff",
+      "digest": "9633d572b9c8"
+    }
+  ],
+  "paneEntryFile": [
+    {
+      "paneId": "ws:1:3",
+      "file": "ws_1_3-627d03afc4.json"
+    },
+    {
+      "paneId": "pane-1",
+      "file": "pane-1-370bd5d12a.json"
+    },
+    {
+      "paneId": "wY:p1",
+      "file": "wY_p1-bfcdf565b7.json"
+    },
+    {
+      "paneId": "a/b c",
+      "file": "a_b_c-0af99a6091.json"
+    },
+    {
+      "paneId": "ünï:💥",
+      "file": "_n____-c7e0aed922.json"
+    },
+    {
+      "paneId": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "file": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-d929cdeea7.json"
+    }
+  ]
+}

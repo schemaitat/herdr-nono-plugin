@@ -85,7 +85,10 @@ Set in the environment Herdr runs plugins with.
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `HERDR_NONO_BIN` | `nono` on `PATH` | Path to `nono` |
-| `HERDR_NONO_NODE` | recorded at install | Node binary for `bin/run.sh` |
+| `HERDR_NONO_BINARY` | `bin/herdr-nono` | Plugin binary the `bin/run.sh` shim runs (development: point it at a `cargo build`) |
+| `HERDR_NONO_RELEASE_URL` | the GitHub release of this version | Where `scripts/install-binary.sh` downloads `herdr-nono-<version>-<target>` and `SHA256SUMS` from |
+| `HERDR_NONO_RELEASE_DIR` | none | A local directory holding those two files instead of a URL |
+| `HERDR_NONO_NO_BUILD` | unset | `1`: `scripts/install-binary.sh` never falls back to `cargo build` |
 | `HERDR_NONO_TIMEOUT_MS` | `30000` | Limit on captured nono calls |
 | `HERDR_NONO_SERVER_READY_TIMEOUT_MS` | `30000` | Wait for OpenCode's server to answer |
 | `HERDR_NONO_VERIFY_WINDOW_MS` | `20000` | How long a launch is verified |

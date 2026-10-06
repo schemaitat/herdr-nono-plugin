@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+- **The plugin is now a single Rust binary** (`herdr-nono`) instead of Node scripts: actions, the
+  in-pane bridge, the `worktree.removed` hook and the overlay are its subcommands, and Node.js is no
+  longer needed at runtime. The build step, `scripts/install-binary.sh`, downloads the release
+  binary that matches the plugin version (x86_64 or aarch64 Linux, static), checks its sha256
+  against the release's `SHA256SUMS`, and builds from source with `cargo` when there is no release.
+  `scripts/write-node-path.sh` and `HERDR_NONO_NODE` are gone; `HERDR_NONO_BINARY` points the shim
+  `bin/run.sh` at another binary (for example a `cargo build`).
+- Upgrading keeps running agents: the mapping files and session names are unchanged, and a bridge
+  that the Node version started is still recognised, stopped and cleaned up by the new binary.
+- `doctor`'s escape probe runs as `herdr-nono probe` from a copy of the binary inside its throwaway
+  sandbox, so the profile no longer has to grant Node. Its result line reports `binary` and
+  `binaryVersion` where it reported `node`.
+- The overlay is rebuilt on [ratatui](https://ratatui.rs): the same information and keys. Quitting
+  cancels the `nono` and `herdr` calls in flight instead of waiting for them, and a startup error
+  stays on screen until a key is pressed.
+- `scripts/run-action.sh` is a wrapper around `herdr-nono run-action`.
+- Releases are driven by release-please: it keeps a release pull request open that bumps the version
+  everywhere and updates this file, and merging it creates the tag and release, after which the same
+  workflow (`.github/workflows/release.yml`) builds the binaries and attaches them with `SHA256SUMS`.
+- Tests: the black-box suite in `test/` drives the built binary; the modules have Rust unit tests,
+  and the overlay has screen, key and pseudo-terminal tests.
+
 - Sandboxes overlay: `i` toggles a profiles view showing, for the selected agent (or the next launch),
   each sandbox's profile, where it comes from (shipped, a file, a nono user profile, built into
   nono), its file, `extends`, network, directory grants, socket mediation and description, plus

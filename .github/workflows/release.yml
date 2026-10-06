@@ -1,0 +1,97 @@
+name: release
+
+# release-please keeps a release pull request open on main: it collects the
+# Conventional Commits since the last release, bumps the version in Cargo.toml,
+# Cargo.lock, herdr-plugin.toml and package.json together, and updates
+# CHANGELOG.md. Merging that pull request creates the tag and the GitHub
+# release; the jobs below then build the static Linux binaries the plugin's
+# install step downloads and attach them, with SHA256SUMS, to that release.
+# A manual run only builds the binaries and keeps them as workflow artifacts.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - id: release
+        uses: googleapis/release-please-action@v4
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  build:
+    needs: release-please
+    if: ${{ always() && (github.event_name == 'workflow_dispatch' || needs.release-please.outputs.release_created == 'true') }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        target: [x86_64-unknown-linux-musl, aarch64-unknown-linux-musl]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release-please.outputs.tag_name || github.ref }}
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+      - uses: mlugg/setup-zig@v1
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-zigbuild
+      - name: Check that the tag, the crate and the manifest agree
+        env:
+          TAG: ${{ needs.release-please.outputs.tag_name }}
+        run: |
+          crate=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -n 1)
+          manifest=$(sed -n 's/^version = "\(.*\)"$/\1/p' herdr-plugin.toml | head -n 1)
+          test "$crate" = "$manifest" || { echo "Cargo.toml says $crate but herdr-plugin.toml says $manifest"; exit 1; }
+          if [ -n "$TAG" ]; then
+            test "v$crate" = "$TAG" || { echo "tag $TAG does not match version $crate"; exit 1; }
+          fi
+          echo "VERSION=$crate" >> "$GITHUB_ENV"
+      - name: Build
+        run: cargo zigbuild --release --locked --target ${{ matrix.target }}
+      - name: Stage the asset
+        run: |
+          mkdir -p dist
+          cp "target/${{ matrix.target }}/release/herdr-nono" "dist/herdr-nono-${VERSION}-${{ matrix.target }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: herdr-nono-${{ matrix.target }}
+          path: dist/*
+          if-no-files-found: error
+
+  publish:
+    needs: [release-please, build]
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: herdr-nono-*
+          merge-multiple: true
+      - name: Write SHA256SUMS
+        run: |
+          cd dist
+          sha256sum herdr-nono-* > SHA256SUMS
+          cat SHA256SUMS
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.release-please.outputs.tag_name }}
+        run: gh release upload "$TAG" dist/* --repo "${GITHUB_REPOSITORY}" --clobber

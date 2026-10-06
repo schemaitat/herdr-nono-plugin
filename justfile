@@ -14,10 +14,17 @@ docs port="8000" host="127.0.0.1":
 docs-build:
     {{mkdocs}} build --strict
 
-# Syntax check every module, then run the tests
+# Format check, lint and test the crate, then run the black-box tests against the debug build
 check:
+    cargo fmt --check
+    cargo clippy --all-targets -- -D warnings
+    cargo test
     npm run check
 
-# Run the tests
+# Run the black-box tests (builds the debug binary first)
 test:
     npm test
+
+# Build the release binary the way a source install does
+build:
+    cargo build --release --locked

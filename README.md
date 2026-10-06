@@ -20,7 +20,8 @@ inside [nono](https://nono.sh) sandboxes, one agent per pane.
 ### 1. Install
 
 Needs Linux (kernel 6.7+), [Herdr](https://herdr.dev) 0.9+, [nono](https://nono.sh)
-0.78+, Node.js 20+ and [OpenCode](https://opencode.ai) 2.x signed in to a provider.
+0.78+ and [OpenCode](https://opencode.ai) 2.x signed in to a provider. Nothing else runs at runtime: the
+plugin is one binary (no Node.js).
 
 ```bash
 nono pull nolabs-ai/opencode                                          # the nono profile pack the plugin builds on
@@ -28,6 +29,12 @@ herdr plugin install schemaitat/herdr-nono-plugin
 herdr plugin action invoke doctor --plugin nono.sandbox               # checks nono and tries to escape a test sandbox
 herdr plugin action invoke install-keybindings --plugin nono.sandbox  # adds the chords below
 ```
+
+Herdr's install runs `scripts/install-binary.sh`, which downloads the release binary for your machine
+(x86_64 or aarch64 Linux), checks its sha256 and installs it as `bin/herdr-nono`. If there is no
+release for that version yet, or no network, it builds from source instead, which needs
+[Rust](https://rustup.rs) (`cargo`). To retry, run `sh scripts/install-binary.sh` in the plugin
+directory; see [Getting started](docs/getting-started.md#install) for the details.
 
 ### 2. Start an agent
 

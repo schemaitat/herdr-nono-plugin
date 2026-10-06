@@ -1,0 +1,37 @@
+[package]
+name = "herdr-nono"
+version = "0.1.0"
+edition = "2021"
+description = "Herdr plugin that runs coding agents, client and server together, inside nono sandboxes."
+license = "Apache-2.0"
+publish = false
+rust-version = "1.80"
+
+[[bin]]
+name = "herdr-nono"
+path = "rust/src/main.rs"
+
+[[test]]
+name = "pane_pty"
+path = "rust/tests/pane_pty.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+getrandom = "0.3"
+libc = "0.2"
+ratatui = "0.29.0"
+regex = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+sha2 = "0.10"
+thiserror = "2"
+url = "2"
+
+[dev-dependencies]
+tempfile = "3"
+
+[profile.release]
+lto = true
+strip = true
+panic = "abort"
+codegen-units = 1

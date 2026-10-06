@@ -1,13 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { removedWorktreePath } from "../src/events-main.mjs";
 import { createFixture, fakeBridgeProcess, fakeShellProcess, mappingFor, runEvent } from "./helpers.mjs";
-
-test("removedWorktreePath reads Herdr's payload shape", () => {
-  assert.equal(removedWorktreePath({ data: { worktree: { path: "/w" } } }), "/w");
-  assert.equal(removedWorktreePath({ worktree: { path: "/v" } }), "/v");
-  assert.equal(removedWorktreePath({}), null);
-});
 
 test("worktree.removed forgets the idle mappings of that worktree and nothing else", () => {
   const f = createFixture({

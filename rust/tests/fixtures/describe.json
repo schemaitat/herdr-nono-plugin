@@ -1,0 +1,78 @@
+{
+  "version": "0.1.0",
+  "pluginId": "nono.sandbox",
+  "resultMarker": "HERDR_SANDBOX_RESULT:",
+  "resultSchemaVersion": 1,
+  "nonoBinEnv": "HERDR_NONO_BIN",
+  "minNonoVersion": "0.78.0",
+  "stateVersion": 1,
+  "actionIds": [
+    "doctor",
+    "install-keybindings",
+    "start-agent",
+    "reconnect",
+    "open-shell",
+    "stop",
+    "info",
+    "verify-sandbox",
+    "prune-mappings",
+    "sandboxes",
+    "list-sandboxes",
+    "forget-mapping"
+  ],
+  "configKeys": [
+    "agentKind",
+    "agentArgs",
+    "resumeArgs",
+    "agentEnv",
+    "customAgents",
+    "profile",
+    "serverProfile",
+    "allowPaths",
+    "readPaths",
+    "nonoArgs",
+    "nonoBin",
+    "silent",
+    "shell",
+    "paneDirection",
+    "paneRatio",
+    "openIn",
+    "reportAgentStatus",
+    "sessionNamePrefix",
+    "cleanupOnWorktreeRemoved",
+    "hostServiceCheck",
+    "verifyAfterStart",
+    "onVerificationFailure"
+  ],
+  "errorKinds": [
+    "not-found",
+    "permission",
+    "conflict",
+    "config",
+    "target",
+    "startup",
+    "unconfined",
+    "unknown"
+  ],
+  "lifecycleStates": [
+    "provisional",
+    "starting",
+    "running",
+    "exited",
+    "failed"
+  ],
+  "loopbackNames": [
+    "127.0.0.1",
+    "localhost",
+    "0.0.0.0",
+    "127.1",
+    "[::1]",
+    "127.0.0.1.nip.io"
+  ],
+  "builtinAgents": {
+    "opencode": {
+      "profile": "profiles/herdr-opencode-client.json",
+      "serverProfile": "profiles/herdr-opencode-server.json"
+    }
+  }
+}
