@@ -35,7 +35,9 @@ test("manifest header matches the binary, the crate and the package metadata", (
   assert.equal(version, pkg.version, "package.json agrees");
   assert.ok(field(tables.head, "min_herdr_version"));
   assert.match(tables.head, /^platforms = \["linux"\]$/m);
-  assert.ok(changelog.includes(`## ${version}`) || changelog.includes("## Unreleased"), "CHANGELOG has a heading for the current version");
+  // release-please writes headings like "## [0.2.0](compare-url) (date)"; the hand-kept form is "## 0.1.0".
+  const heading = new RegExp(`^## (\\[${version.replaceAll(".", "\\.")}\\]|${version.replaceAll(".", "\\.")}\\b|Unreleased)`, "m");
+  assert.match(changelog, heading, "CHANGELOG has a heading for the current version");
 });
 
 test("manifest actions and the binary's dispatcher agree, in the same order", () => {

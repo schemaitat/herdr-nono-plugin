@@ -32,11 +32,22 @@ only their test runner. On a host with nono and the `nolabs-ai/opencode` pack,
 
 ## Releases
 
-A `v*` tag runs `.github/workflows/release.yml`: it builds static (musl)
-binaries for x86_64 and aarch64 Linux with `cargo-zigbuild`, writes
-`SHA256SUMS`, and attaches them to the tag's GitHub release. The tag must equal
-the version in `Cargo.toml` and `herdr-plugin.toml`, or the workflow fails. A
-manual run builds the files as workflow artifacts without a release.
+[release-please](https://github.com/googleapis/release-please) does the releasing,
+from the Conventional Commits on `main` (`.github/workflows/release.yml`,
+configured in `release-please-config.json`). It keeps a release pull request
+open that bumps the version in `Cargo.toml`, `Cargo.lock`, `herdr-plugin.toml`
+and `package.json` together and updates `CHANGELOG.md`; before 1.0 a breaking
+change bumps the minor version. Merging that pull request creates the `v<version>`
+tag and the GitHub release, and the same workflow then builds static (musl)
+binaries for x86_64 and aarch64 Linux with `cargo-zigbuild`, writes `SHA256SUMS`
+and attaches both to the release, where `scripts/install-binary.sh` finds them.
+The build fails if the tag, `Cargo.toml` and `herdr-plugin.toml` disagree. A manual
+run builds the files as workflow artifacts without a release.
+
+The repository needs "Allow GitHub Actions to create and approve pull requests"
+(Settings, Actions, General) for release-please to open its pull request. Pull
+requests opened with the default token do not start `ci.yml`; close and reopen
+the release pull request, or use a token of your own, if checks are required.
 
 ## Docs
 

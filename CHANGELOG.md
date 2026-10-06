@@ -18,8 +18,9 @@
   cancels the `nono` and `herdr` calls in flight instead of waiting for them, and a startup error
   stays on screen until a key is pressed.
 - `scripts/run-action.sh` is a wrapper around `herdr-nono run-action`.
-- Releases: `.github/workflows/release.yml` builds the binaries for a `v*` tag and attaches them
-  with `SHA256SUMS`.
+- Releases are driven by release-please: it keeps a release pull request open that bumps the version
+  everywhere and updates this file, and merging it creates the tag and release, after which the same
+  workflow (`.github/workflows/release.yml`) builds the binaries and attaches them with `SHA256SUMS`.
 - Tests: the black-box suite in `test/` drives the built binary; the modules have Rust unit tests,
   and the overlay has screen, key and pseudo-terminal tests.
 
