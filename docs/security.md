@@ -210,6 +210,6 @@ against a damaged or truncated download, not against a compromised release. If
 you need more, build from source (`HERDR_NONO_NO_BUILD` unset and no release for
 your checkout, or `cargo build --release --locked`) after reading the code.
 
-Tested on Linux 7.0 with nono 0.78.0, OpenCode 2.0.20, Herdr 0.9.1 and the
+Tested on Linux 7.0 with nono 0.78.0, OpenCode 2.0.22, Herdr 0.9.1 and the
 `nolabs-ai/opencode` pack 0.2.0. Results depend on the nono version and the
 pack; `doctor` re-checks on your host.

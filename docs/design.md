@@ -41,6 +41,12 @@ so are the overlay (`herdr-nono pane`) and the `worktree.removed` hook
   `--listen-port` and blocked mode an explicit `--open-port`. So the server
   uses proxy mode, the client blocked mode, and the plugin owns the port and
   password between them. The cost is nono's rate limit in proxy mode.
+- **`--standalone` is stripped.** The pack profile `nolabs-ai/opencode` sets
+  `command_args: ["--standalone"]`, which nono appends to every command run
+  under a profile that extends it, and a profile cannot clear it. OpenCode
+  2.0.22 rejects the flag on `opencode serve` and next to `--server`, and a
+  shell rejects it too. So every sandboxed command runs through a small
+  `sh -c` wrapper that drops it and `exec`s the real command.
 - **Profiles on top of the pack.** `nolabs-ai/opencode` describes what
   OpenCode needs; the plugin adds only what a Herdr pane needs and passes its
   profiles by path, installing nothing.

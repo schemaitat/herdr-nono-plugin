@@ -4,7 +4,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import path from "node:path";
 import { test } from "node:test";
-import { ROOT, createFixture, fakeBridgeProcess, mappingFor, runBridge } from "./helpers.mjs";
+import { ROOT, WRAP, createFixture, fakeBridgeProcess, mappingFor, runBridge } from "./helpers.mjs";
 
 const CLIENT_PROFILE = path.join(ROOT, "profiles", "herdr-opencode-client.json");
 const SERVER_PROFILE = path.join(ROOT, "profiles", "herdr-opencode-server.json");
@@ -22,8 +22,8 @@ test("start runs the server and the client in two nono sandboxes joined by one p
   const [server, client] = f.nonoRuns();
   const port = server.argv[server.argv.indexOf("--listen-port") + 1];
   assert.match(port, /^\d+$/);
-  assert.deepEqual(server.argv, ["run", "--silent", "--profile", SERVER_PROFILE, "--name", "herdr-opencode-abc123def456-server", "--allow", f.worktree, "--listen-port", port, "--", "opencode", "serve", "--hostname", "127.0.0.1", "--port", port]);
-  assert.deepEqual(client.argv, ["run", "--profile", CLIENT_PROFILE, "--name", "herdr-opencode-abc123def456", "--allow", f.worktree, "--open-port", port, "--", "opencode", "--server", `http://127.0.0.1:${port}`]);
+  assert.deepEqual(server.argv, ["run", "--silent", "--profile", SERVER_PROFILE, "--name", "herdr-opencode-abc123def456-server", "--allow", f.worktree, "--listen-port", port, "--", ...WRAP, "opencode", "serve", "--hostname", "127.0.0.1", "--port", port]);
+  assert.deepEqual(client.argv, ["run", "--profile", CLIENT_PROFILE, "--name", "herdr-opencode-abc123def456", "--allow", f.worktree, "--open-port", port, "--", ...WRAP, "opencode", "--server", `http://127.0.0.1:${port}`]);
   assert.equal(client.cwd, f.worktree);
   for (const run of [server, client]) {
     assert.deepEqual(Object.keys(run.env).filter((key) => key.startsWith("HERDR_")), [], "no HERDR_* variable reaches nono");
@@ -70,7 +70,7 @@ test("connect resumes with the adapter's resume arguments and extra grants and f
   assert.equal(runBridge(f, "connect", "pane-1").status, 0);
   const [server, client] = f.nonoRuns();
   const port = server.argv[server.argv.indexOf("--listen-port") + 1];
-  assert.deepEqual(client.argv.slice(client.argv.indexOf("--") + 1), ["opencode", "--server", `http://127.0.0.1:${port}`, "--continue"]);
+  assert.deepEqual(client.argv.slice(client.argv.indexOf("--") + 1 + WRAP.length), ["opencode", "--server", `http://127.0.0.1:${port}`, "--continue"]);
   assert.ok(client.argv.includes("--silent"));
   assert.deepEqual(client.argv.slice(client.argv.indexOf("--allow", 7), client.argv.indexOf("--")), ["--allow", "/data", "--read", "/ref", "--memory", "2G", "--open-port", port]);
   assert.deepEqual(server.argv.slice(server.argv.indexOf("--allow", 7), server.argv.indexOf("--")), ["--allow", "/data", "--read", "/ref", "--memory", "2G", "--listen-port", port]);
@@ -234,7 +234,7 @@ test("shell opens the configured shell without start-up files in a sandbox named
   assert.equal(status, 0, stdout);
   const [run] = f.nonoRuns();
   assert.equal(run.argv[run.argv.indexOf("--name") + 1], "herdr-opencode-abc123def456-shell");
-  assert.deepEqual(run.argv.slice(run.argv.indexOf("--") + 1), ["/bin/true"]);
+  assert.deepEqual(run.argv.slice(run.argv.indexOf("--") + 1 + WRAP.length), ["/bin/true"]);
   assert.equal(run.env.PS1, "[nono:abc123] $ ");
   assert.deepEqual(f.mappings().panes["pane-1"].shellPids, [], "the shell record is released on exit");
   assert.equal(f.mappings().panes["pane-1"].lifecycleState, "provisional", "a shell does not touch the agent's state");

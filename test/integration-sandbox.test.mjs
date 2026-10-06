@@ -18,7 +18,7 @@ import { createServer } from "node:net";
 import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import { after, before, describe, test } from "node:test";
-import { SHIPPED_PROFILES, runProbes } from "./helpers.mjs";
+import { SHIPPED_PROFILES, WRAP, runProbes } from "./helpers.mjs";
 
 /** An executable as an absolute path, or the bare name when it is not on PATH. */
 function which(bin) {
@@ -64,7 +64,7 @@ function herdrSkipReason() {
  * @returns {Promise<{status: number|null, output: string}>}
  */
 async function inSandbox(profile, argv, { workspace, extraArgs = [], env = process.env, timeoutMs = 60_000 }) {
-  const child = spawn(NONO, ["run", "--silent", "--profile", profile, "--allow", workspace, ...extraArgs, "--", ...argv], { cwd: workspace, env, stdio: ["ignore", "pipe", "pipe"] });
+  const child = spawn(NONO, ["run", "--silent", "--profile", profile, "--allow", workspace, ...extraArgs, "--", ...WRAP, ...argv], { cwd: workspace, env, stdio: ["ignore", "pipe", "pipe"] });
   let output = "";
   child.stdout.on("data", (chunk) => { output += chunk; });
   child.stderr.on("data", (chunk) => { output += chunk; });
@@ -245,7 +245,7 @@ describe("sandbox confinement with the real nono", { skip: SKIP ?? false, concur
     const host = await canary(0, "host");
     const port = 20_000 + (process.pid % 20_000);
     const serverScript = `const net = require("node:net"); const s = net.createServer((c) => c.end("server")); s.on("error", (e) => { console.log("LISTEN " + e.code); process.exit(1); }); s.listen(${port}, "127.0.0.1", () => { console.log("LISTENING"); const other = net.createServer(); other.on("error", (e) => console.log("OTHER " + e.code)); other.listen(${port + 1}, "127.0.0.1", () => console.log("OTHER LISTENING")); }); setTimeout(() => process.exit(0), 30000);`;
-    const server = spawn(NONO, ["run", "--silent", "--profile", PROFILES.server, "--allow", workspace, "--listen-port", String(port), "--", process.execPath, "-e", serverScript], { cwd: workspace, stdio: ["ignore", "pipe", "pipe"] });
+    const server = spawn(NONO, ["run", "--silent", "--profile", PROFILES.server, "--allow", workspace, "--listen-port", String(port), "--", ...WRAP, process.execPath, "-e", serverScript], { cwd: workspace, stdio: ["ignore", "pipe", "pipe"] });
     let serverOutput = "";
     try {
       await new Promise((resolve, reject) => {
