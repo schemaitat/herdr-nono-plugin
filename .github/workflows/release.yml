@@ -6,11 +6,18 @@ name: release
 # CHANGELOG.md. Merging that pull request creates the tag and the GitHub
 # release; the jobs below then build the static Linux binaries the plugin's
 # install step downloads and attach them, with SHA256SUMS, to that release.
-# A manual run only builds the binaries and keeps them as workflow artifacts.
+# A manual run builds the binaries and keeps them as workflow artifacts; give
+# it the tag of an existing release (for example v0.2.0) and it attaches them to
+# that release instead, which is how to repair a release whose build failed.
 on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to build and attach the binaries to (empty: only keep workflow artifacts)"
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -48,7 +55,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.release-please.outputs.tag_name || github.ref }}
+          ref: ${{ needs.release-please.outputs.tag_name || inputs.tag || github.ref }}
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
@@ -57,7 +64,7 @@ jobs:
           key: ${{ matrix.target }}
       - name: Check that the tag, the crate and the manifest agree
         env:
-          TAG: ${{ needs.release-please.outputs.tag_name }}
+          TAG: ${{ needs.release-please.outputs.tag_name || inputs.tag }}
         run: |
           crate=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -n 1)
           manifest=$(sed -n 's/^version = "\(.*\)"$/\1/p' herdr-plugin.toml | head -n 1)
@@ -80,7 +87,7 @@ jobs:
 
   publish:
     needs: [release-please, build]
-    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    if: ${{ always() && (needs.release-please.outputs.release_created == 'true' || inputs.tag != '') && needs.build.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -96,5 +103,5 @@ jobs:
       - name: Attach to the release
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ needs.release-please.outputs.tag_name }}
+          TAG: ${{ needs.release-please.outputs.tag_name || inputs.tag }}
         run: gh release upload "$TAG" dist/* --repo "${GITHUB_REPOSITORY}" --clobber
