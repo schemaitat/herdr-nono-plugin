@@ -9,11 +9,12 @@ use std::sync::mpsc::{channel, Receiver, RecvTimeoutError, Sender};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
-use super::app::{prune_status, verify_status, Job};
+use super::app::{clean_status, prune_status, verify_status, Job};
 use super::model::{collect_sandboxes, CollectInput, Collected};
 use super::ui::{Status, StatusKind};
 use crate::config::PluginConfig;
 use crate::context::Env;
+use crate::errors::ErrorKind;
 use crate::exec::CancelToken;
 use crate::herdr::HerdrClient;
 use crate::lifecycle::{Lifecycle, LifecycleOptions};
@@ -41,6 +42,8 @@ pub struct WorkerConfig {
 pub enum Msg {
     Snapshot(Box<Result<Collected, String>>),
     JobDone(Status),
+    /// The pane is in view; the overlay has done its job and closes.
+    Jumped,
 }
 
 pub struct Worker {
@@ -50,7 +53,7 @@ pub struct Worker {
     handle: Option<JoinHandle<()>>,
 }
 
-fn run_job(job: &Job, lifecycle: &Lifecycle) -> Status {
+fn run_job(job: &Job, lifecycle: &Lifecycle, herdr: &HerdrClient) -> Status {
     let failed =
         |error: crate::errors::PluginError| Status::new(StatusKind::Error, error.message.clone());
     match job {
@@ -69,6 +72,31 @@ fn run_job(job: &Job, lifecycle: &Lifecycle) -> Status {
             Ok(_) => Status::new(StatusKind::Ok, format!("stopped {session_name}")),
             Err(error) => failed(error),
         },
+        Job::Jump { pane_id } => match herdr.focus_pane(pane_id) {
+            Ok(()) => Status::new(StatusKind::Ok, format!("jumped to {pane_id}")),
+            Err(error) => failed(error),
+        },
+        Job::CleanAll { running } => {
+            let mut stopped = 0;
+            let mut failures = Vec::new();
+            for (pane_id, session_name) in running {
+                match lifecycle.stop(pane_id, false) {
+                    Ok(_) => stopped += 1,
+                    Err(error) if error.kind == ErrorKind::NotFound => {}
+                    Err(error) => failures.push(format!("{session_name}: {}", error.message)),
+                }
+            }
+            // No pane counts as live: every mapping goes, except one whose agent still runs.
+            match lifecycle.prune(&[]) {
+                Ok(outcome) => {
+                    for kept in &outcome.kept {
+                        failures.push(format!("kept {}: {}", kept.session_name, kept.reason));
+                    }
+                    clean_status(stopped, outcome.pruned.len(), &failures)
+                }
+                Err(error) => failed(error),
+            }
+        }
         Job::Prune { pane_ids } => match lifecycle.prune(pane_ids) {
             Ok(outcome) => prune_status(
                 outcome.pruned.len(),
@@ -126,7 +154,11 @@ impl Worker {
                 }
                 match job_rx.recv_timeout(next_collect.saturating_duration_since(Instant::now())) {
                     Ok(job) => {
-                        let status = run_job(&job, &lifecycle);
+                        let status = run_job(&job, &lifecycle, &herdr);
+                        if matches!(job, Job::Jump { .. }) && status.kind == StatusKind::Ok {
+                            let _ = msg_tx.send(Msg::Jumped);
+                            break;
+                        }
                         if token.is_cancelled() || msg_tx.send(Msg::JobDone(status)).is_err() {
                             break;
                         }
@@ -208,7 +240,10 @@ esac
         let herdr = dir.join("herdr");
         std::fs::write(
             &herdr,
-            "#!/bin/sh\necho '{\"result\":{\"panes\":[{\"pane_id\":\"w1:p1\"}]}}'\n",
+            format!(
+                "#!/bin/sh\necho \"$*\" >> '{dir}/herdr-log'\ncase \"$1 $2\" in\n  'pane get') echo '{{\"result\":{{\"pane\":{{\"pane_id\":\"w1:p1\",\"workspace_id\":\"w1\",\"tab_id\":\"w1:t1\"}}}}}}' ;;\n  *) echo '{{\"result\":{{\"panes\":[{{\"pane_id\":\"w1:p1\"}}]}}}}' ;;\nesac\n",
+                dir = dir.display()
+            ),
         )
         .unwrap();
         std::fs::set_permissions(&herdr, std::fs::Permissions::from_mode(0o755)).unwrap();
@@ -398,5 +433,39 @@ esac
         for _ in 0..3 {
             snapshot(next(&worker));
         }
+    }
+
+    #[test]
+    fn clean_all_forgets_every_mapping() {
+        let f = fixture();
+        snapshot(next(&f.worker));
+        f.worker.submit(Job::CleanAll {
+            running: Vec::new(),
+        });
+        match next(&f.worker) {
+            Msg::JobDone(status) => assert_eq!(
+                (status.kind, status.text.as_str()),
+                (StatusKind::Ok, "stopped 0 agents, forgot 2 mappings")
+            ),
+            other => panic!("expected the job result, got {other:?}"),
+        }
+        assert!(snapshot(next(&f.worker)).rows.is_empty());
+    }
+
+    #[test]
+    fn jumping_focuses_the_workspace_and_tab_then_closes_the_overlay() {
+        let f = fixture();
+        snapshot(next(&f.worker));
+        f.worker.submit(Job::Jump {
+            pane_id: "w1:p1".into(),
+        });
+        assert!(matches!(next(&f.worker), Msg::Jumped));
+        let log = std::fs::read_to_string(f.dir.path().join("herdr-log")).unwrap();
+        assert_eq!(
+            log.lines()
+                .filter(|line| *line != "pane list")
+                .collect::<Vec<_>>(),
+            ["pane get w1:p1", "workspace focus w1", "tab focus w1:t1"]
+        );
     }
 }

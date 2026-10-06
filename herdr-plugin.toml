@@ -74,7 +74,7 @@ command = ["sh", "bin/run.sh", "action"]
 [[actions]]
 id = "sandboxes"
 title = "Show the sandboxes overlay"
-description = "Open the interactive overlay: every sandboxed agent with its pane, sandboxes and verification, a details panel, and keys to verify, stop and prune."
+description = "Open the interactive overlay: every sandboxed agent with its pane, sandboxes and verification, a details panel, and keys to jump to a pane, verify, stop, prune and clean up all."
 contexts = ["global", "workspace", "pane"]
 command = ["sh", "bin/run.sh", "action"]
 

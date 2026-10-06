@@ -24,7 +24,7 @@ inside them. It refreshes every three seconds.
 │ Verified    confined: 4 processes, server pid 3243022 (7:53:20 AM)                                         │
 └────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
  ✔ verified: confined: 4 processes, server pid 3243022
- ↑↓/jk  select   v  verify   x  stop   p  prune   i  profiles   r  refresh   q  quit
+ ↑↓/jk  select   ⏎  jump   v  verify   x  stop   p  prune   a  clean all   i  profiles   ?  help   q  quit
 ```
 
 ## Reading it
@@ -72,9 +72,12 @@ next launch's profiles. `i` goes back.
 | Key | Does |
 | --- | --- |
 | `↑` `↓` / `j` `k`, `PgUp` `PgDn` | Select an agent |
+| `enter`, `g` | Jump to the selected agent's pane (focuses its workspace and tab) and close the overlay |
 | `v` | Verify the selected agent now (`verify-sandbox`) |
 | `x` | Stop the selected agent and its server, after `y/N` |
 | `p` | Forget every stale mapping that runs nothing, after `y/N` |
+| `a` | Clean up all: stop every running agent and forget every mapping, after `y/N` |
+| `?` | Show the key reference, with the Herdr chords; `?` or `esc` goes back |
 | `i` | Toggle the [profiles view](#profiles-view) |
 | `r` | Refresh now |
 | `q`, `ctrl+c` | Close |

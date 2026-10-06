@@ -66,6 +66,8 @@ pub struct ViewState {
     pub status: Option<Status>,
     pub prompt: Option<String>,
     pub mode: Mode,
+    /// The key reference is on screen.
+    pub help: bool,
     pub configured: Option<Configured>,
     pub profiles: ProfilesInfo,
 }
@@ -80,6 +82,7 @@ impl ViewState {
             status: None,
             prompt: None,
             mode: Mode::Sandboxes,
+            help: false,
             configured: None,
             profiles,
         }
@@ -245,7 +248,21 @@ pub fn draw(frame: &mut Frame, view: &ViewState, ctx: &DrawContext) {
     let table_area = take(table_height);
     draw_agents(frame, table_area, view, selected, table_rows, ctx);
 
-    if view.mode == Mode::Profiles {
+    if view.help {
+        let room = (height as i64
+            - footer_lines as i64
+            - y.get() as i64
+            - 2
+            - i64::from(view.session_error.is_some()))
+        .max(1) as usize;
+        let mut body = help_lines();
+        body.truncate(room);
+        let panel_area = take(room.min(body.len()) + 2);
+        frame.render_widget(
+            Paragraph::new(body).block(framed(titled("Keys", Style::new()), Tone::Yellow)),
+            panel_area,
+        );
+    } else if view.mode == Mode::Profiles {
         let room = (height as i64
             - footer_lines as i64
             - y.get() as i64
@@ -340,24 +357,67 @@ pub fn draw(frame: &mut Frame, view: &ViewState, ctx: &DrawContext) {
     }
 }
 
+/// The key reference the `?` screen shows: the overlay's keys, then the chords
+/// Herdr opens the plugin's actions with.
+fn help_lines() -> Vec<Line<'static>> {
+    let key = |keys: &str, does: &str| {
+        Line::from(vec![
+            span(format!(" {keys:<14}"), bold(color_of(Tone::Cyan))),
+            span(does.to_string(), Style::new()),
+        ])
+    };
+    let heading = |text: &str| Line::from(span(format!(" {text}"), bold(Style::new())));
+    vec![
+        heading("In this overlay"),
+        key("↑ ↓  j k", "select an agent (PgUp PgDn jump five)"),
+        key("enter  g", "jump to the agent's pane and close the overlay"),
+        key("v", "verify the agent's confinement now"),
+        key("x", "stop the agent and its server (asks first)"),
+        key("p", "forget mappings whose pane is gone (asks first)"),
+        key(
+            "a",
+            "clean up all: stop every agent, forget every mapping (asks first)",
+        ),
+        key("i", "show the profiles, or go back to the sandboxes"),
+        key("r", "refresh now"),
+        key("?", "show or hide this help"),
+        key("q  ctrl+c", "close the overlay"),
+        Line::default(),
+        heading("From any pane (prefix chords, after install-keybindings)"),
+        key("prefix+shift+a", "start-agent: a new sandboxed agent"),
+        key("prefix+shift+o", "sandboxes: this overlay"),
+        key("prefix+shift+b", "reconnect: resume in fresh sandboxes"),
+        key(
+            "prefix+shift+s",
+            "open-shell: a shell under the server's policy",
+        ),
+    ]
+}
+
 fn key_hints(view: &ViewState, width: usize) -> Line<'static> {
-    let mut keys: Vec<(&str, &str)> = if view.prompt.is_some() {
+    let mut keys: Vec<(&str, &str)> = if view.help {
+        vec![("?/esc", "back"), ("q", "quit")]
+    } else if view.prompt.is_some() {
         vec![("y", "confirm"), ("n/esc", "cancel")]
     } else if view.mode == Mode::Profiles {
         vec![
             ("↑↓/jk", "select"),
             ("i", "sandboxes"),
             ("r", "refresh"),
+            ("?", "help"),
             ("q", "quit"),
         ]
     } else {
         vec![
             ("↑↓/jk", "select"),
+            ("⏎", "jump"),
             ("v", "verify"),
             ("x", "stop"),
             ("p", "prune"),
+            ("a", "clean all"),
             ("i", "profiles"),
             ("r", "refresh"),
+            ("?", "help"),
             ("q", "quit"),
         ]
     };
@@ -370,7 +430,7 @@ fn key_hints(view: &ViewState, width: usize) -> Line<'static> {
             .count()
     };
     // On a narrow screen the least needed hints go first; their keys still work.
-    for drop in ["r", "p"] {
+    for drop in ["r", "a", "p", "v", "x"] {
         if plain_len(&keys) < width {
             break;
         }
@@ -1321,7 +1381,7 @@ mod tests {
         has("Verified    FAILED: Process 7 is not confined (");
         has("Problem     Process 7 is not confined");
         has("✔ pruned 1 mapping");
-        assert!(hints(&lines).contains("↑↓/jk  select   v  verify   x  stop   p  prune   i  profiles   r  refresh   q  quit"), "{}", hints(&lines));
+        assert!(hints(&lines).contains("↑↓/jk  select   ⏎  jump   v  verify   x  stop   p  prune   a  clean all   i  profiles   ?  help   q  quit"), "{}", hints(&lines));
     }
 
     #[test]
@@ -1413,7 +1473,27 @@ mod tests {
             !last.contains("refresh") && !last.contains("prune"),
             "refresh and prune hints go first: {last}"
         );
-        assert!(last.contains("q  quit"), "{last}");
+        assert!(
+            last.contains("q  quit") && last.contains("?  help"),
+            "{last}"
+        );
+    }
+
+    #[test]
+    fn the_help_screen_lists_every_key_and_the_herdr_chords() {
+        let mut state = view(sample_rows());
+        state.help = true;
+        let (lines, text) = screen(&state, 110, 32);
+        for wanted in [
+            "┌─ Keys",
+            "enter  g",
+            "clean up all",
+            "prefix+shift+o",
+            "sandboxes: this overlay",
+        ] {
+            assert!(text.contains(wanted), "{wanted}: {text}");
+        }
+        assert!(hints(&lines).contains("?/esc  back"), "{}", hints(&lines));
     }
 
     fn profile_summary(name: &str, egress: &str) -> ProfileSummary {

@@ -35,6 +35,14 @@ pub enum Job {
     Prune {
         pane_ids: Vec<String>,
     },
+    /// Bring the agent's pane into view; the overlay closes when it worked.
+    Jump {
+        pane_id: String,
+    },
+    /// Stop every running agent, then forget every mapping.
+    CleanAll {
+        running: Vec<(String, String)>,
+    },
 }
 
 impl Job {
@@ -45,6 +53,8 @@ impl Job {
             Job::Verify { session_name, .. } => format!("verifying {session_name}…"),
             Job::Stop { session_name, .. } => format!("stopping {session_name}…"),
             Job::Prune { .. } => "pruning…".to_string(),
+            Job::Jump { pane_id } => format!("jumping to {pane_id}…"),
+            Job::CleanAll { .. } => "cleaning up…".to_string(),
         }
     }
 }
@@ -117,6 +127,12 @@ impl App {
                 }
             };
         }
+        if self.view.help {
+            if matches!(key, Key::Char('?') | Key::Escape | Key::Enter) {
+                self.view.help = false;
+            }
+            return Effect::None;
+        }
         if self.busy {
             return Effect::None;
         }
@@ -126,6 +142,44 @@ impl App {
             Key::Down | Key::Char('j') => self.view.selected = (self.view.selected + 1).min(last),
             Key::PageUp => self.view.selected = self.view.selected.saturating_sub(5),
             Key::PageDown => self.view.selected = (self.view.selected + 5).min(last),
+            Key::Char('?') => self.view.help = true,
+            Key::Enter | Key::Char('g') => {
+                let Some(row) = self.view.selected_row() else {
+                    return Effect::None;
+                };
+                let (pane_id, session_name) = (row.pane_id.clone(), row.session_name.clone());
+                if row.pane_exists == Some(false) {
+                    self.say(
+                        StatusKind::Error,
+                        format!("pane {pane_id} of {session_name} is gone; nothing to jump to"),
+                    );
+                } else {
+                    return self.start(Job::Jump { pane_id });
+                }
+            }
+            Key::Char('a') => {
+                if self.view.rows.is_empty() {
+                    self.say(StatusKind::Info, "nothing to clean up: no mappings");
+                    return Effect::None;
+                }
+                let running: Vec<(String, String)> = self
+                    .view
+                    .rows
+                    .iter()
+                    .filter(|row| row.running == Some(true) || row.server_running == Some(true))
+                    .map(|row| (row.pane_id.clone(), row.session_name.clone()))
+                    .collect();
+                let total = self.view.rows.len();
+                self.ask(
+                    format!(
+                        "Stop {} running agent{} and forget all {total} mapping{}?",
+                        running.len(),
+                        plural(running.len()),
+                        plural(total)
+                    ),
+                    Job::CleanAll { running },
+                );
+            }
             Key::Char('i') => {
                 self.view.mode = if self.view.mode == Mode::Profiles {
                     Mode::Sandboxes
@@ -243,6 +297,23 @@ pub fn verify_status(session_name: &str, report: &crate::verify::VerificationRep
         },
         text,
     )
+}
+
+/// The status line for a finished clean-up.
+pub fn clean_status(stopped: usize, forgotten: usize, failures: &[String]) -> Status {
+    let text = format!(
+        "stopped {stopped} agent{}, forgot {forgotten} mapping{}",
+        plural(stopped),
+        plural(forgotten)
+    );
+    if failures.is_empty() {
+        Status::new(StatusKind::Ok, text)
+    } else {
+        Status::new(
+            StatusKind::Error,
+            format!("{text}; {}", failures.join("; ")),
+        )
+    }
 }
 
 /// The status line for a finished prune.
@@ -507,5 +578,72 @@ mod tests {
         app.on_snapshot(Err("boom".into()));
         assert_eq!(status(&app), "could not read the sandboxes: boom");
         assert_eq!(app.view.rows.len(), 1, "an error keeps the last data");
+    }
+
+    #[test]
+    fn enter_jumps_to_the_selected_pane_unless_it_is_gone() {
+        let mut app = app_with(two_idle(), Some(vec!["w1:p1"]));
+        assert_eq!(
+            app.on_key(Key::Enter),
+            Effect::Start(Job::Jump {
+                pane_id: "w1:p1".into()
+            })
+        );
+        assert_eq!(status(&app), "jumping to w1:p1…");
+        app.on_job_done(Status::new(StatusKind::Error, "x"));
+        app.on_key(Key::Down);
+        assert_eq!(app.on_key(Key::Char('g')), Effect::None);
+        assert_eq!(
+            status(&app),
+            "pane w1:p2 of s-2 is gone; nothing to jump to"
+        );
+        assert_eq!(app_with(Vec::new(), None).on_key(Key::Enter), Effect::None);
+    }
+
+    #[test]
+    fn a_asks_then_stops_the_running_agents_and_forgets_everything() {
+        let mut app = app_with(
+            vec![
+                row("w1:p1", "s-1", Some(true), Some(false), Some(true)),
+                row("w1:p2", "s-2", Some(false), Some(false), Some(false)),
+            ],
+            Some(vec!["w1:p1"]),
+        );
+        assert_eq!(app.on_key(Key::Char('a')), Effect::None);
+        assert_eq!(
+            app.view.prompt.as_deref(),
+            Some("Stop 1 running agent and forget all 2 mappings? [y/N]")
+        );
+        assert_eq!(
+            app.on_key(Key::Char('y')),
+            Effect::Start(Job::CleanAll {
+                running: vec![("w1:p1".into(), "s-1".into())]
+            })
+        );
+        assert_eq!(status(&app), "cleaning up…");
+        assert_eq!(
+            clean_status(1, 2, &[]).text,
+            "stopped 1 agent, forgot 2 mappings"
+        );
+        assert_eq!(
+            clean_status(0, 1, &["s-1: boom".into()]).kind,
+            StatusKind::Error
+        );
+        let mut empty = app_with(Vec::new(), None);
+        empty.on_key(Key::Char('a'));
+        assert!(empty.view.prompt.is_none());
+    }
+
+    #[test]
+    fn the_help_screen_opens_with_a_question_mark_and_swallows_other_keys() {
+        let mut app = app_with(two_idle(), Some(vec![]));
+        app.on_key(Key::Char('?'));
+        assert!(app.view.help);
+        assert_eq!(app.on_key(Key::Char('r')), Effect::None);
+        assert!(app.view.help, "other keys do nothing while help shows");
+        app.on_key(Key::Escape);
+        assert!(!app.view.help);
+        app.on_key(Key::Char('?'));
+        assert_eq!(app.on_key(Key::Char('q')), Effect::Quit);
     }
 }
