@@ -21,3 +21,9 @@ check:
 # Run the tests
 test:
     npm test
+
+# Format check, lint and test the Rust crate the way CI does
+rs-check:
+    cargo fmt --check
+    cargo clippy --all-targets -- -D warnings
+    cargo test

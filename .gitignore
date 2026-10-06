@@ -5,3 +5,6 @@ node_modules/
 bin/node-path
 site/
 __pycache__/
+
+# Rust build output
+/target
