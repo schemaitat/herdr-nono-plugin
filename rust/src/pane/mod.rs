@@ -1,6 +1,6 @@
 //! The sandboxes overlay: an interactive terminal UI listing every mapping with
 //! its pane, nono sandboxes and verification, a details panel for the selected
-//! one, and keys to verify, stop and prune. Refreshes until `q`. Built on
+//! one, and keys to jump, verify, stop, prune and clean up all. Refreshes until `q`. Built on
 //! ratatui; the screen is in [`ui`], the key handling in [`app`], and the
 //! commands that talk to nono and Herdr run on a [`worker`] thread.
 
@@ -276,6 +276,7 @@ fn run_interactive(setup: Setup) -> i32 {
             match message {
                 Msg::Snapshot(snapshot) => app.on_snapshot(*snapshot),
                 Msg::JobDone(status) => app.on_job_done(status),
+                Msg::Jumped => break 'event_loop,
             }
             dirty = true;
         }

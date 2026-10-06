@@ -322,6 +322,33 @@ impl HerdrClient {
         }
     }
 
+    /// Brings a pane into view: focuses its workspace and its tab (Herdr has no
+    /// focus-by-id for a pane itself). The ids come from `herdr pane get`; the
+    /// workspace falls back to the id's prefix when the answer lacks it.
+    pub fn focus_pane(&self, pane_id: &str) -> Result<()> {
+        let pane = self.get_pane(pane_id)?.ok_or_else(|| {
+            PluginError::new(
+                ErrorKind::NotFound,
+                format!("Pane {pane_id} no longer exists."),
+            )
+        })?;
+        let workspace = non_empty_str(pane.get("workspace_id")).or_else(|| {
+            pane_id
+                .split_once(':')
+                .map(|(workspace, _)| workspace.to_string())
+        });
+        if let Some(workspace) = workspace {
+            self.run(
+                &["workspace", "focus", &workspace],
+                "focusing the workspace",
+            )?;
+        }
+        if let Some(tab) = non_empty_str(pane.get("tab_id")) {
+            self.run(&["tab", "focus", &tab], "focusing the tab")?;
+        }
+        Ok(())
+    }
+
     /// Closes a pane (`herdr pane close`).
     pub fn close_pane(&self, pane_id: &str) -> Result<()> {
         self.run(&["pane", "close", pane_id], "closing the pane")
