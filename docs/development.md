@@ -39,7 +39,7 @@ open that bumps the version in `Cargo.toml`, `Cargo.lock`, `herdr-plugin.toml`
 and `package.json` together and updates `CHANGELOG.md`; before 1.0 a breaking
 change bumps the minor version. Merging that pull request creates the `v<version>`
 tag and the GitHub release, and the same workflow then builds static (musl)
-binaries for x86_64 and aarch64 Linux with `cargo-zigbuild`, writes `SHA256SUMS`
+binaries for x86_64 and aarch64 Linux, each natively on a runner of its own architecture, writes `SHA256SUMS`
 and attaches both to the release, where `scripts/install-binary.sh` finds them.
 The build fails if the tag, `Cargo.toml` and `herdr-plugin.toml` disagree. A manual
 run builds the files as workflow artifacts without a release.
