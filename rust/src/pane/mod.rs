@@ -162,6 +162,30 @@ fn draw_context(setup_home: &str) -> DrawContext {
     }
 }
 
+/// The size of the frame `--once` prints: the terminal's when stdout is one,
+/// else `COLUMNS` and `LINES`, else 110 x 32.
+fn frame_size(env: &Env) -> (u16, u16) {
+    if std::io::stdout().is_terminal() {
+        if let Ok((width, height)) = ratatui::crossterm::terminal::size() {
+            if width > 0 && height > 0 {
+                return (width, height);
+            }
+        }
+    }
+    size_from_env(env)
+}
+
+/// `COLUMNS` and `LINES`, else 110 x 32.
+fn size_from_env(env: &Env) -> (u16, u16) {
+    let from_env = |name: &str, fallback: u16| {
+        env.get(name)
+            .and_then(|value| value.trim().parse::<u16>().ok())
+            .filter(|value| *value > 0)
+            .unwrap_or(fallback)
+    };
+    (from_env("COLUMNS", 110), from_env("LINES", 32))
+}
+
 /// Renders a single plain frame to stdout: what `--once` prints.
 fn run_once(setup: &Setup) -> i32 {
     let nono = NonoClient::new(setup.nono_bin.clone(), setup.env.clone())
@@ -186,7 +210,8 @@ fn run_once(setup: &Setup) -> i32 {
         }
     }
     let home = home_dir(&setup.env).to_string_lossy().into_owned();
-    let lines = render_lines(&view, &draw_context(&home), 110, 32);
+    let (width, height) = frame_size(&setup.env);
+    let lines = render_lines(&view, &draw_context(&home), width, height);
     println!("{}", lines.join("\n"));
     0
 }
@@ -299,4 +324,29 @@ pub fn run_pane(args: &[String], env: &Env) -> i32 {
 /// The process environment, for the entry point in main.
 pub fn run_pane_from_process(args: &[String]) -> i32 {
     run_pane(args, &process_env())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_fallback_frame_size_comes_from_the_environment() {
+        let env = |pairs: &[(&str, &str)]| -> Env {
+            pairs
+                .iter()
+                .map(|(key, value)| (key.to_string(), value.to_string()))
+                .collect()
+        };
+        // Under `cargo test` stdout is not a terminal, so the environment decides.
+        assert_eq!(
+            size_from_env(&env(&[("COLUMNS", "200"), ("LINES", "50")])),
+            (200, 50)
+        );
+        assert_eq!(size_from_env(&env(&[])), (110, 32));
+        assert_eq!(
+            size_from_env(&env(&[("COLUMNS", "junk"), ("LINES", "0")])),
+            (110, 32)
+        );
+    }
 }

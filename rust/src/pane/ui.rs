@@ -294,17 +294,19 @@ pub fn draw(frame: &mut Frame, view: &ViewState, ctx: &DrawContext) {
         );
     }
 
-    // Status line and key hints, anchored to the bottom.
+    // Status line and key hints, directly under the content so a pane that is
+    // taller than the visible area still shows them; with no room they sit at the bottom.
     if height >= footer_lines {
+        let top = (y.get() as usize + 1).min(height - footer_lines);
         let status_area = Rect {
             x: area.x,
-            y: area.y + (height - 2) as u16,
+            y: area.y + top as u16,
             width: area.width,
             height: 1,
         };
         let keys_area = Rect {
             x: area.x,
-            y: area.y + (height - 1) as u16,
+            y: area.y + (top + 1) as u16,
             width: area.width,
             height: 1,
         };
@@ -1266,6 +1268,15 @@ mod tests {
         ]
     }
 
+    /// The key hint line: the last line that carries the quit key.
+    fn hints(lines: &[String]) -> &String {
+        lines
+            .iter()
+            .rev()
+            .find(|line| line.contains("q  quit") || line.contains("y  confirm"))
+            .expect("the key hints are on screen")
+    }
+
     fn view(rows: Vec<Row>) -> ViewState {
         let mut view = ViewState::new(ProfilesInfo::default());
         view.rows = rows;
@@ -1311,7 +1322,7 @@ mod tests {
         has("Verified    FAILED: Process 7 is not confined (");
         has("Problem     Process 7 is not confined");
         has("✔ pruned 1 mapping");
-        assert!(lines.last().unwrap().contains("↑↓/jk  select   v  verify   x  stop   p  prune   i  profiles   r  refresh   q  quit"), "{}", lines.last().unwrap());
+        assert!(hints(&lines).contains("↑↓/jk  select   v  verify   x  stop   p  prune   i  profiles   r  refresh   q  quit"), "{}", hints(&lines));
     }
 
     #[test]
@@ -1322,10 +1333,9 @@ mod tests {
         let (lines, text) = screen(&state, 110, 32);
         assert!(text.contains("? Forget 1 mapping? [y/N]"));
         assert!(
-            lines.last().unwrap().contains("y  confirm")
-                && lines.last().unwrap().contains("n/esc  cancel"),
+            hints(&lines).contains("y  confirm") && hints(&lines).contains("n/esc  cancel"),
             "{}",
-            lines.last().unwrap()
+            hints(&lines)
         );
         assert!(text.contains("▶○  w1:p2"), "{text}");
         assert!(
@@ -1397,7 +1407,7 @@ mod tests {
     #[test]
     fn the_key_hints_fit_a_narrow_screen_and_keep_the_profiles_key() {
         let (lines, _) = screen(&view(sample_rows()), 70, 30);
-        let last = lines.last().unwrap();
+        let last = hints(&lines);
         assert!(last.chars().count() <= 70, "{last}");
         assert!(last.contains("i  profiles"), "{last}");
         assert!(
@@ -1468,11 +1478,7 @@ mod tests {
         has("Next launch server mine · client herdr-opencode-client; prefix+shift+b after quitting switches");
         has("Config      ~/.config/herdr/plugins/nono.sandbox/config.json");
         has("user profiles in ~/.config/nono/profiles");
-        assert!(
-            lines.last().unwrap().contains("i  sandboxes"),
-            "{}",
-            lines.last().unwrap()
-        );
+        assert!(hints(&lines).contains("i  sandboxes"), "{}", hints(&lines));
     }
 
     #[test]
@@ -1566,5 +1572,27 @@ mod tests {
         state.apply(Collected::default());
         assert_eq!(state.selected, 0);
         assert!(state.selected_row().is_none());
+    }
+
+    #[test]
+    fn on_a_tall_screen_the_hints_sit_under_the_content_not_at_the_bottom() {
+        let (lines, _) = screen(&view(sample_rows()), 110, 60);
+        let at = lines
+            .iter()
+            .position(|line| line.contains("q  quit"))
+            .expect("hints");
+        assert!(at < 40, "the hints are at line {at} of 60");
+        assert!(
+            lines[at - 1].contains("refreshes every"),
+            "the status line is just above: {}",
+            lines[at - 1]
+        );
+        // With no spare room they stay on the last row.
+        let (cramped, _) = screen(&view(sample_rows()), 110, 14);
+        assert!(
+            cramped.last().unwrap().contains("q  quit"),
+            "{}",
+            cramped.join("\n")
+        );
     }
 }
