@@ -40,8 +40,11 @@ mod tests {
 
     #[test]
     fn describe_equals_the_snapshot() {
-        let snapshot: Value =
+        // The snapshot began as the output of the Node modules this crate replaced; fields added since are written
+        // by hand. The version changes with every release, so it is checked against the crate, not the snapshot.
+        let mut snapshot: Value =
             serde_json::from_str(include_str!("../tests/fixtures/describe.json")).unwrap();
+        snapshot["version"] = json!(env!("CARGO_PKG_VERSION"));
         assert_eq!(describe(), snapshot);
     }
 

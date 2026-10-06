@@ -42,7 +42,9 @@ tag and the GitHub release, and the same workflow then builds static (musl)
 binaries for x86_64 and aarch64 Linux, each natively on a runner of its own architecture, writes `SHA256SUMS`
 and attaches both to the release, where `scripts/install-binary.sh` finds them.
 The build fails if the tag, `Cargo.toml` and `herdr-plugin.toml` disagree. A manual
-run builds the files as workflow artifacts without a release.
+run (Actions, release, Run workflow) builds the files as workflow artifacts; give it the
+tag of an existing release, such as `v0.2.0`, and it attaches them to that release,
+which repairs a release whose build failed.
 
 The repository needs "Allow GitHub Actions to create and approve pull requests"
 (Settings, Actions, General) for release-please to open its pull request. Pull
