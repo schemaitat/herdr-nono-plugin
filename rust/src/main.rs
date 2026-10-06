@@ -5,17 +5,24 @@
 // that later phases of the rewrite add; drop this once the actions use them.
 #![allow(dead_code)]
 
+mod agents;
 mod config;
 mod constants;
 mod context;
 mod describe;
 mod errors;
+mod exec;
+mod herdr;
+mod hostservice;
 mod naming;
+mod nono;
+mod probes;
 mod procfs;
 mod result;
 mod shell;
 mod state;
 mod util;
+mod verify;
 
 use std::process::ExitCode;
 
@@ -49,9 +56,22 @@ enum Command {
     Events(Passthrough),
     /// Show the interactive sandboxes overlay.
     Pane(Passthrough),
-    /// Run the escape probe; only meaningful inside a sandbox.
+    /// Run the escape probe checks; only meaningful inside a sandbox.
     #[command(hide = true)]
     Probe(Passthrough),
+    /// Run the escape probe in a throwaway sandbox and print the checks as JSON.
+    #[command(hide = true)]
+    ProbeRun {
+        /// The nono executable.
+        #[arg(long, default_value = "nono")]
+        nono_bin: String,
+        /// The nono profile name or file the probe runs under.
+        #[arg(long)]
+        profile: String,
+        /// Run this executable inside the sandbox instead of a copy of this binary.
+        #[arg(long)]
+        probe_exe: Option<std::path::PathBuf>,
+    },
     /// Print the action ids, config keys and constants as JSON.
     #[command(hide = true)]
     Describe,
@@ -76,6 +96,31 @@ fn main() -> ExitCode {
         Command::Bridge(_) => not_implemented("bridge"),
         Command::Events(_) => not_implemented("events"),
         Command::Pane(_) => not_implemented("pane"),
-        Command::Probe(_) => not_implemented("probe"),
+        Command::Probe(passthrough) => probes::probe_main(&passthrough.args),
+        Command::ProbeRun {
+            nono_bin,
+            profile,
+            probe_exe,
+        } => {
+            let env = context::process_env();
+            let mut options = probes::ProbeOptions::new(&nono_bin, &profile, &env);
+            options.probe_exe = probe_exe.as_deref();
+            match probes::run_probes(&options) {
+                Ok(run) => {
+                    println!(
+                        "{}",
+                        serde_json::to_string(&run).expect("a probe run serialises")
+                    );
+                    ExitCode::SUCCESS
+                }
+                Err(error) => {
+                    eprintln!("{}", error.message);
+                    if !error.output.trim().is_empty() {
+                        eprintln!("{}", error.output.trim());
+                    }
+                    ExitCode::FAILURE
+                }
+            }
+        }
     }
 }

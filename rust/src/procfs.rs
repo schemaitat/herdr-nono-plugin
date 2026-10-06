@@ -49,9 +49,20 @@ pub fn procfs_available(root: &Path) -> bool {
     root.join("self").join("status").exists()
 }
 
-/// Whether a process with this pid exists on the real /proc.
+/// Whether a process with this pid exists: `kill(pid, 0)` succeeds, or fails
+/// with EPERM because the process belongs to another user.
 pub fn process_alive(pid: u32) -> bool {
-    Path::new(PROC_ROOT).join(pid.to_string()).exists()
+    let Ok(pid) = libc::pid_t::try_from(pid) else {
+        return false;
+    };
+    if pid == 0 {
+        return false;
+    }
+    // SAFETY: signal 0 only checks that the process exists and may be signalled.
+    unsafe {
+        libc::kill(pid, 0) == 0
+            || std::io::Error::last_os_error().raw_os_error() == Some(libc::EPERM)
+    }
 }
 
 fn read_text(file: &Path) -> Option<String> {

@@ -117,7 +117,7 @@ dependency for those tests only, never a runtime one.
 | # | Phase | File | Status |
 |---|-------|------|--------|
 | 1 | Crate scaffold and pure foundations | [phase-01.md](phase-01.md) | Done |
-| 2 | External clients, verification and the probe | [phase-02.md](phase-02.md) | Proposed |
+| 2 | External clients, verification and the probe | [phase-02.md](phase-02.md) | Done |
 | 3 | Lifecycle, bridge and event hook | [phase-03.md](phase-03.md) | Proposed |
 | 4 | Actions | [phase-04.md](phase-04.md) | Proposed |
 | 5 | ratatui overlay | [phase-05.md](phase-05.md) | Proposed |

@@ -16,6 +16,31 @@ pub fn random_hex(bytes: usize) -> String {
     buffer.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
+/// `String(value)` for a JSON value, as JavaScript would print it.
+pub fn js_string(value: &serde_json::Value) -> String {
+    use serde_json::Value;
+    match value {
+        Value::String(text) => text.clone(),
+        Value::Null => "null".to_string(),
+        Value::Bool(flag) => flag.to_string(),
+        Value::Number(number) => match number.as_f64() {
+            Some(float) if float.fract() == 0.0 && float.abs() < 1e15 => {
+                format!("{}", float as i64)
+            }
+            Some(float) => float.to_string(),
+            None => number.to_string(),
+        },
+        Value::Array(items) => items.iter().map(js_string).collect::<Vec<_>>().join(","),
+        Value::Object(_) => "[object Object]".to_string(),
+    }
+}
+
+/// A JSON number that is a positive integer (`Number.isInteger(v) && v > 0`), as u32.
+pub fn positive_int(value: Option<&serde_json::Value>) -> Option<u32> {
+    let float = value?.as_f64()?;
+    (float.fract() == 0.0 && float > 0.0 && float <= f64::from(u32::MAX)).then_some(float as u32)
+}
+
 /// Milliseconds since the Unix epoch.
 pub fn now_ms() -> u64 {
     SystemTime::now()
@@ -67,6 +92,25 @@ mod tests {
             sha256_hex("abc"),
             "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
         );
+    }
+
+    #[test]
+    fn js_string_prints_values_like_javascript() {
+        use serde_json::json;
+        assert_eq!(js_string(&json!("a")), "a");
+        assert_eq!(js_string(&json!(12)), "12");
+        assert_eq!(js_string(&json!(12.0)), "12");
+        assert_eq!(js_string(&json!(1.5)), "1.5");
+        assert_eq!(js_string(&json!(true)), "true");
+        assert_eq!(js_string(&json!([1, "b"])), "1,b");
+        assert_eq!(js_string(&json!({})), "[object Object]");
+        assert_eq!(positive_int(Some(&json!(7))), Some(7));
+        assert_eq!(positive_int(Some(&json!(7.0))), Some(7));
+        assert_eq!(positive_int(Some(&json!(0))), None);
+        assert_eq!(positive_int(Some(&json!(-1))), None);
+        assert_eq!(positive_int(Some(&json!(1.5))), None);
+        assert_eq!(positive_int(Some(&json!("7"))), None);
+        assert_eq!(positive_int(None), None);
     }
 
     #[test]
