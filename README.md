@@ -64,6 +64,8 @@ OpenCode runs every tool call in its server, not in the TUI, so each agent
 gets two sandboxes: a **server sandbox** (OpenCode's private server and every
 tool it runs) and a **client sandbox** (the TUI).
 
+![Launch flow: Herdr starts an action that opens an agent pane; its bridge launches separate server and client sandboxes, verifies both from the host, and records the result.](docs/images/launch.svg)
+
 | | Server sandbox: server and tools | Client sandbox: TUI |
 | --- | --- | --- |
 | Project files | Read-write: the worktree or git repository of the focused pane | Same |

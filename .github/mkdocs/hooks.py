@@ -65,6 +65,10 @@ def _rewrite(target, page, config):
     site = _site_path(resolved)
     if site is not None:
         return posixpath.relpath(site, posixpath.dirname(page.file.src_uri) or ".") + fragment
+    # Files under docs/ are published with the site, not served from GitHub.
+    if resolved.startswith("docs/") and (ROOT / resolved).is_file():
+        asset = resolved[len("docs/"):]
+        return posixpath.relpath(asset, posixpath.dirname(page.file.src_uri) or ".") + fragment
     branch = "blob" if (ROOT / resolved).is_file() else "tree"
     return f"{config['repo_url'].rstrip('/')}/{branch}/main/{resolved}{fragment}"
 
