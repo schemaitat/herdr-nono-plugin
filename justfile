@@ -28,3 +28,11 @@ test:
 # Build the release binary the way a source install does
 build:
     cargo build --release --locked
+
+# Build this checkout and install it as the nono.sandbox plugin, replacing a GitHub install or an older link
+install:
+    cargo build --release --locked
+    install -D -m 755 target/release/herdr-nono bin/herdr-nono
+    -herdr plugin unlink nono.sandbox
+    -herdr plugin uninstall nono.sandbox
+    herdr plugin link "{{justfile_directory()}}"
