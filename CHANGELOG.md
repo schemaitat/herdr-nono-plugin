@@ -58,6 +58,13 @@
   says early that the plugin is built for OpenCode.
 - `justfile` with `just docs` (live preview) and `just docs-build` (strict build, as in CI).
 
+## [0.4.1](https://github.com/schemaitat/herdr-nono-plugin/compare/v0.4.0...v0.4.1) (2026-10-10)
+
+
+### Bug Fixes
+
+* **pane:** accept shifted slash as ?, keep navigation live while busy ([#13](https://github.com/schemaitat/herdr-nono-plugin/issues/13)) ([bdb8113](https://github.com/schemaitat/herdr-nono-plugin/commit/bdb8113ee170041b6d0f55b2b160f2dfc212392a))
+
 ## [0.4.0](https://github.com/schemaitat/herdr-nono-plugin/compare/v0.3.0...v0.4.0) (2026-10-06)
 
 

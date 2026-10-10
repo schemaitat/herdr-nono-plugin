@@ -1,6 +1,6 @@
 [package]
 name = "herdr-nono"
-version = "0.4.0"
+version = "0.4.1"
 edition = "2021"
 description = "Herdr plugin that runs coding agents, client and server together, inside nono sandboxes."
 license = "Apache-2.0"
