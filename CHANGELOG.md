@@ -58,6 +58,13 @@
   says early that the plugin is built for OpenCode.
 - `justfile` with `just docs` (live preview) and `just docs-build` (strict build, as in CI).
 
+## [0.5.0](https://github.com/schemaitat/herdr-nono-plugin/compare/v0.4.1...v0.5.0) (2026-10-10)
+
+
+### Features
+
+* **pane:** one box per agent, health colours, and a details popup ([#15](https://github.com/schemaitat/herdr-nono-plugin/issues/15)) ([9f62a78](https://github.com/schemaitat/herdr-nono-plugin/commit/9f62a78947c527e9f36ec4f1bc1b46e255717645))
+
 ## [0.4.1](https://github.com/schemaitat/herdr-nono-plugin/compare/v0.4.0...v0.4.1) (2026-10-10)
 
 
