@@ -37,6 +37,13 @@ pub const REFRESH_INTERVAL: Duration = Duration::from_secs(3);
 /// How long a startup error stays on screen.
 pub const HOLD: Duration = Duration::from_secs(15);
 
+/// When, after starting, the screen is repainted from scratch.
+const STARTUP_REPAINTS: [Duration; 3] = [
+    Duration::from_millis(150),
+    Duration::from_millis(600),
+    Duration::from_millis(2000),
+];
+
 /// How long quitting waits for the worker to stop its commands.
 const QUIT_GRACE: Duration = Duration::from_millis(150);
 
@@ -223,6 +230,7 @@ struct TerminalGuard;
 
 impl Drop for TerminalGuard {
     fn drop(&mut self) {
+        let _ = ratatui::crossterm::execute!(std::io::stdout(), event::DisableFocusChange);
         ratatui::restore();
     }
 }
@@ -244,10 +252,26 @@ fn run_interactive(setup: Setup) -> i32 {
     // Alternate screen, raw input and a hidden cursor; all restored on the way out.
     let mut terminal = ratatui::init();
     let _guard = TerminalGuard;
+    let _ = ratatui::crossterm::execute!(std::io::stdout(), event::EnableFocusChange);
     let mut last_clock = String::new();
     let mut dirty = true;
+    // Herdr may size the pane after the first frame without telling us, which
+    // left a stale screen until the first click; repaint from scratch a few
+    // times while starting, and whenever the size or the focus changes.
+    let started = Instant::now();
+    let mut startup_repaints = STARTUP_REPAINTS.iter().copied().peekable();
+    let mut repaint = false;
     'event_loop: loop {
         let ctx = draw_context(&home);
+        if startup_repaints.peek().is_some_and(|at| started.elapsed() >= *at) {
+            startup_repaints.next();
+            repaint = true;
+        }
+        if repaint {
+            let _ = terminal.clear();
+            repaint = false;
+            dirty = true;
+        }
         if dirty || ctx.clock != last_clock {
             if terminal.draw(|frame| draw(frame, &app.view, &ctx)).is_err() {
                 break;
@@ -267,7 +291,7 @@ fn run_interactive(setup: Setup) -> i32 {
                         dirty = true;
                     }
                 }
-                Ok(Event::Resize(..)) => dirty = true,
+                Ok(Event::Resize(..) | Event::FocusGained) => repaint = true,
                 Ok(_) => {}
                 Err(_) => break,
             },

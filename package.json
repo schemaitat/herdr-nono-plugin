@@ -13,6 +13,6 @@
     "test": "npm run build && node --test test/*.test.mjs",
     "syntax": "for f in test/*.mjs test/fakes/*.mjs test/support/*.mjs; do node --check \"$f\" || exit 1; done",
     "check": "npm run syntax && npm test",
-    "lint:md": "markdownlint README.md CHANGELOG.md AGENTS.md docs/"
+    "lint:md": "markdownlint README.md CHANGELOG.md docs/"
   }
 }

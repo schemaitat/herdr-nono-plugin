@@ -141,7 +141,6 @@ pub fn session_cell(row: &Row) -> (String, Tone) {
 /// A colour intent; the UI maps it to terminal colours.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Tone {
-    Plain,
     Gray,
     Green,
     Yellow,
@@ -157,6 +156,76 @@ pub fn is_stale(row: &Row) -> bool {
         && row.running == Some(false)
         && row.server_running != Some(true)
         && row.shells.unwrap_or(0) == 0
+}
+
+/// How alive an agent is, for the colour of its box.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Health {
+    /// A sandbox of the agent is up (green).
+    Running,
+    /// Every sandbox is down but the pane still exists (yellow).
+    Stopped,
+    /// Every sandbox is down and the pane is gone (red); prune forgets it.
+    Stale,
+    /// nono could not be asked.
+    Unknown,
+}
+
+impl Health {
+    /// The word the overview shows.
+    pub fn word(self) -> &'static str {
+        match self {
+            Health::Running => "running",
+            Health::Stopped => "stopped",
+            Health::Stale => "stale",
+            Health::Unknown => "unknown",
+        }
+    }
+
+    /// The colour of the word and of the box border.
+    pub fn tone(self) -> Tone {
+        match self {
+            Health::Running => Tone::Green,
+            Health::Stopped => Tone::Yellow,
+            Health::Stale => Tone::Red,
+            Health::Unknown => Tone::Gray,
+        }
+    }
+}
+
+/// Classifies a row: any live sandbox is running; otherwise the pane decides
+/// between stopped (still there) and stale (gone).
+pub fn health(row: &Row) -> Health {
+    if row.running == Some(true) || row.server_running == Some(true) || row.shells.unwrap_or(0) > 0
+    {
+        Health::Running
+    } else if is_stale(row) {
+        Health::Stale
+    } else if row.running == Some(false) {
+        Health::Stopped
+    } else {
+        Health::Unknown
+    }
+}
+
+/// The worktree (or project directory) name of a workspace root, the label the
+/// Herdr sidebar shows, and the repository directory above it when the root
+/// lives in a `worktrees/<repo>/<name>` layout.
+pub fn worktree_name(local_path: &str) -> (String, Option<String>) {
+    let path = Path::new(local_path.trim_end_matches('/'));
+    let name = path
+        .file_name()
+        .map_or_else(|| "?".to_string(), |name| name.to_string_lossy().into_owned());
+    let repo = path.parent().and_then(|repo| {
+        let in_worktrees = repo
+            .parent()
+            .and_then(Path::file_name)
+            .is_some_and(|dir| dir == "worktrees");
+        in_worktrees
+            .then(|| repo.file_name().map(|repo| repo.to_string_lossy().into_owned()))
+            .flatten()
+    });
+    (name, repo)
 }
 
 fn basename(word: &str) -> &str {
@@ -586,6 +655,39 @@ mod tests {
             }
         }
         row
+    }
+
+    #[test]
+    fn health_is_running_stopped_or_stale() {
+        let down = json!({"running": false, "server_running": false, "shells": 0});
+        let with = |extra: Value| {
+            let mut merged = down.as_object().cloned().unwrap();
+            merged.extend(extra.as_object().cloned().unwrap());
+            row(Value::Object(merged))
+        };
+        assert_eq!(health(&with(json!({"pane_exists": true}))), Health::Stopped);
+        assert_eq!(health(&with(json!({"pane_exists": false}))), Health::Stale);
+        assert_eq!(health(&with(json!({"pane_exists": false, "running": true}))), Health::Running);
+        assert_eq!(health(&with(json!({"server_running": true}))), Health::Running);
+        assert_eq!(health(&with(json!({"pane_exists": false, "shells": 1}))), Health::Running);
+        let mut unknown = with(json!({"pane_exists": true}));
+        unknown.running = None;
+        assert_eq!(health(&unknown), Health::Unknown);
+        assert_eq!(Health::Stale.word(), "stale");
+        assert_eq!(Health::Stopped.tone(), Tone::Yellow);
+    }
+
+    #[test]
+    fn worktree_name_is_the_directory_and_the_repository_above_a_herdr_worktree() {
+        assert_eq!(
+            worktree_name("/home/u/.herdr/worktrees/herdr-nono-plugin/feat-tui/"),
+            ("feat-tui".to_string(), Some("herdr-nono-plugin".to_string()))
+        );
+        assert_eq!(
+            worktree_name("/home/u/projects/app"),
+            ("app".to_string(), None)
+        );
+        assert_eq!(worktree_name(""), ("?".to_string(), None));
     }
 
     #[test]

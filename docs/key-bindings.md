@@ -6,7 +6,7 @@ These four chords are the main way to use the plugin.
 | Chord | Action | Does |
 | --- | --- | --- |
 | `prefix+shift+a` | `start-agent` | Splits the focused pane and starts OpenCode: server sandbox in the background, client sandbox (the TUI) in the new pane |
-| `prefix+shift+o` | `sandboxes` | Opens the [sandboxes overlay](overlay.md): every agent, its client and server sandbox, their processes and verification; `enter` jumps to a pane, `a` cleans up all, `?` lists the keys |
+| `prefix+shift+o` | `sandboxes` | Opens the [sandboxes overlay](overlay.md): every agent, its client and server sandbox, their processes and verification; `enter` shows an agent's details, `g` jumps to its pane, `a` cleans up all, `?` lists the keys |
 | `prefix+shift+b` | `reconnect` | In an agent's pane after OpenCode exited: starts fresh sandboxes and resumes the conversation (`--continue`) |
 | `prefix+shift+s` | `open-shell` | Opens a shell pane below, sandboxed with the server's profile, the one the agent's tools run under |
 

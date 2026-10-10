@@ -15,8 +15,8 @@ test("the overlay entry point renders one plain frame with --once through the re
   const result = spawnSync(command, args, { cwd: f.root, encoding: "utf8", env: f.env() });
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /nono sandboxes .*1 agent · 1 running/);
-  assert.match(result.stdout, /┌─ client · /);
-  assert.match(result.stdout, /▶● {2}w1:p1 +…abc123def456 +opencode +running +client\+server/);
+  assert.match(result.stdout, /┏ ▶ worktree +━+ running ┓/, "a box titled by the worktree name");
+  assert.match(result.stdout, /opencode {2}· {2}w1:p1 {2}· {2}client\+server .*…abc123def456/);
   assert.doesNotMatch(result.stdout, new RegExp(`${ESC}\\[`), "--once prints no escape codes");
   f.cleanup();
 });

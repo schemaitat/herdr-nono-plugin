@@ -133,13 +133,12 @@ impl App {
             }
             return Effect::None;
         }
+        if self.view.detail && matches!(key, Key::Escape | Key::Enter) {
+            self.view.detail = false;
+            return Effect::None;
+        }
         // Moving around stays possible while a job runs; only starting another one waits.
-        if self.busy
-            && matches!(
-                key,
-                Key::Enter | Key::Char('g' | 'r' | 'v' | 'x' | 'p' | 'a')
-            )
-        {
+        if self.busy && matches!(key, Key::Char('g' | 'r' | 'v' | 'x' | 'p' | 'a')) {
             return Effect::None;
         }
         let last = self.view.rows.len().saturating_sub(1);
@@ -149,7 +148,8 @@ impl App {
             Key::PageUp => self.view.selected = self.view.selected.saturating_sub(5),
             Key::PageDown => self.view.selected = (self.view.selected + 5).min(last),
             Key::Char('?') => self.view.help = true,
-            Key::Enter | Key::Char('g') => {
+            Key::Enter => self.view.detail = self.view.selected_row().is_some(),
+            Key::Char('g') => {
                 let Some(row) = self.view.selected_row() else {
                     return Effect::None;
                 };
@@ -187,6 +187,7 @@ impl App {
                 );
             }
             Key::Char('i') => {
+                self.view.detail = false;
                 self.view.mode = if self.view.mode == Mode::Profiles {
                     Mode::Sandboxes
                 } else {
@@ -590,10 +591,29 @@ mod tests {
     }
 
     #[test]
-    fn enter_jumps_to_the_selected_pane_unless_it_is_gone() {
+    fn enter_opens_the_detail_overlay_and_escape_or_enter_closes_it() {
+        let mut app = app_with(two_idle(), Some(vec!["w1:p1"]));
+        assert_eq!(app.on_key(Key::Enter), Effect::None);
+        assert!(app.view.detail);
+        app.on_key(Key::Down);
+        assert!(app.view.detail, "the selection moves under the overlay");
+        assert_eq!(app.view.selected, 1);
+        app.on_key(Key::Escape);
+        assert!(!app.view.detail);
+        app.on_key(Key::Enter);
+        app.on_key(Key::Enter);
+        assert!(!app.view.detail);
+        assert_eq!(app_with(Vec::new(), None).on_key(Key::Enter), Effect::None);
+        let mut empty = app_with(Vec::new(), None);
+        empty.on_key(Key::Enter);
+        assert!(!empty.view.detail, "nothing to show with no agents");
+    }
+
+    #[test]
+    fn g_jumps_to_the_selected_pane_unless_it_is_gone() {
         let mut app = app_with(two_idle(), Some(vec!["w1:p1"]));
         assert_eq!(
-            app.on_key(Key::Enter),
+            app.on_key(Key::Char('g')),
             Effect::Start(Job::Jump {
                 pane_id: "w1:p1".into()
             })
@@ -606,7 +626,7 @@ mod tests {
             status(&app),
             "pane w1:p2 of s-2 is gone; nothing to jump to"
         );
-        assert_eq!(app_with(Vec::new(), None).on_key(Key::Enter), Effect::None);
+        assert_eq!(app_with(Vec::new(), None).on_key(Key::Char('g')), Effect::None);
     }
 
     #[test]
