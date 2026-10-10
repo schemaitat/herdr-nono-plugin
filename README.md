@@ -107,7 +107,7 @@ setting. `doctor` and `test/integration-sandbox.test.mjs` check it; details in
 | Chord | Action | Does |
 | --- | --- | --- |
 | `prefix+shift+a` | `start-agent` | Start OpenCode in a new pane, server and client sandboxed |
-| `prefix+shift+o` | `sandboxes` | Open the [sandboxes overlay](docs/overlay.md): every agent, its client and server sandbox, their processes; `enter` jumps to a pane, `a` cleans up all, `?` lists the keys |
+| `prefix+shift+o` | `sandboxes` | Open the [sandboxes overlay](docs/overlay.md): every agent, its client and server sandbox, their processes; `enter` shows an agent's details, `g` jumps to its pane, `a` cleans up all, `?` lists the keys |
 | `prefix+shift+b` | `reconnect` | Resume the conversation in fresh sandboxes |
 | `prefix+shift+s` | `open-shell` | Open a shell under the server's policy, the one the tools run under |
 

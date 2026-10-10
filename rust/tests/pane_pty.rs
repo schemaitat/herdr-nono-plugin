@@ -203,7 +203,11 @@ fn it_draws_switches_views_and_quits_restoring_the_terminal() {
     term.press("i");
     term.wait_for("Profiles · agent pane-1", "the profiles view");
     term.press("i");
-    term.wait_for("Details", "the sandboxes view again");
+    term.wait_for("select", "the list again");
+    term.press("\r");
+    term.wait_for("Details", "enter opens the details popup");
+    term.press("\u{1b}");
+    term.wait_for("refreshes every", "escape closes the popup");
     term.press("q");
     let status = wait_exit(&mut child, Duration::from_secs(5)).expect("q quits");
     assert!(status.success(), "{status:?}");
@@ -304,7 +308,7 @@ fn once_prints_one_plain_frame_without_a_terminal() {
         "{text}"
     );
     assert!(
-        text.contains("┌─ Agents ─") && text.contains("…abc123def456"),
+        text.contains("┏ ▶ repo") && text.contains("…abc123def456"),
         "{text}"
     );
     assert!(!text.contains('\u{1b}'), "--once prints no escape codes");
