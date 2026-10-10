@@ -12,12 +12,12 @@ use ratatui::widgets::{Block, BorderType, Borders, Clear, Padding, Paragraph};
 use ratatui::Frame;
 use serde_json::Value;
 
-use crate::nono::ProfileSummary;
 use super::model::{
     fit, health, network_detail, network_label, profile_name, profile_source, session_cell,
     short_command, short_path, worktree_name, Collected, Configured, Health, Row, Tone,
     TreeProcess,
 };
+use crate::nono::ProfileSummary;
 use crate::util::{local_clock, parse_iso_ms};
 
 /// Which view fills the area below the agents table.
@@ -209,7 +209,11 @@ pub fn draw(frame: &mut Frame, view: &ViewState, ctx: &DrawContext) {
     let row = selected.map(|index| &rows[index]);
 
     // Title bar.
-    let count = |health: Health| rows.iter().filter(|item| self::health(item) == health).count();
+    let count = |health: Health| {
+        rows.iter()
+            .filter(|item| self::health(item) == health)
+            .count()
+    };
     let failed = rows
         .iter()
         .filter(|item| item.verified == Some(false))
@@ -220,7 +224,10 @@ pub fn draw(frame: &mut Frame, view: &ViewState, ctx: &DrawContext) {
         if rows.len() == 1 { "" } else { "s" },
         count(Health::Running)
     );
-    for (n, word) in [(count(Health::Stopped), "stopped"), (count(Health::Stale), "stale")] {
+    for (n, word) in [
+        (count(Health::Stopped), "stopped"),
+        (count(Health::Stale), "stale"),
+    ] {
         if n > 0 {
             right.push_str(&format!(" · {n} {word}"));
         }
@@ -242,7 +249,10 @@ pub fn draw(frame: &mut Frame, view: &ViewState, ctx: &DrawContext) {
         band(area, 0, 1),
     );
     frame.render_widget(Paragraph::new(key_hints(view, width)), band(area, 1, 1));
-    frame.render_widget(Paragraph::new(status_line(view, ctx, width)), band(area, 2, 1));
+    frame.render_widget(
+        Paragraph::new(status_line(view, ctx, width)),
+        band(area, 2, 1),
+    );
 
     // The body: the boxes, with an `nono ps` failure on the last line.
     let mut body = band(area, HEADER_LINES, area.height);
@@ -349,15 +359,24 @@ fn help_lines() -> Vec<Line<'static>> {
         heading("Box colours"),
         Line::from(vec![
             span(" green        ".to_string(), color_of(Tone::Green)),
-            span("a sandbox of the agent is running".to_string(), Style::new()),
+            span(
+                "a sandbox of the agent is running".to_string(),
+                Style::new(),
+            ),
         ]),
         Line::from(vec![
             span(" yellow       ".to_string(), color_of(Tone::Yellow)),
-            span("sandboxes stopped, the pane still exists".to_string(), Style::new()),
+            span(
+                "sandboxes stopped, the pane still exists".to_string(),
+                Style::new(),
+            ),
         ]),
         Line::from(vec![
             span(" red          ".to_string(), color_of(Tone::Red)),
-            span("stale: sandboxes down and the pane is gone (p forgets)".to_string(), Style::new()),
+            span(
+                "stale: sandboxes down and the pane is gone (p forgets)".to_string(),
+                Style::new(),
+            ),
         ]),
         Line::default(),
         heading("From any pane (prefix chords, after install-keybindings)"),
@@ -506,7 +525,10 @@ fn draw_box(frame: &mut Frame, area: Rect, item: &Row, is_selected: bool, ctx: &
         bold(tone)
     };
     let mut title = vec![
-        span(if is_selected { " ▶ " } else { "● " }, if is_selected { label } else { tone }),
+        span(
+            if is_selected { " ▶ " } else { "● " },
+            if is_selected { label } else { tone },
+        ),
         span(name, label),
     ];
     if is_selected {
@@ -529,9 +551,7 @@ fn draw_box(frame: &mut Frame, area: Rect, item: &Row, is_selected: bool, ctx: &
         .border_type(border)
         .border_style(if is_selected { bold(tone) } else { tone })
         .title(Line::from(title))
-        .title(
-            Line::from(vec![span(format!(" {} ", state.word()), bold(tone))]).right_aligned(),
-        )
+        .title(Line::from(vec![span(format!(" {} ", state.word()), bold(tone))]).right_aligned())
         .padding(Padding::horizontal(1));
     if is_selected {
         block = block.style(Style::new().bg(Color::Indexed(236)));
@@ -922,7 +942,12 @@ fn policy_lines(
         out.push(field("localhost", "REACHABLE".into(), color_of(Tone::Red)));
     }
     let mut writes = vec!["the workspace root".to_string()];
-    writes.extend(summary.read_write_paths.iter().map(|path| short_path(path, home)));
+    writes.extend(
+        summary
+            .read_write_paths
+            .iter()
+            .map(|path| short_path(path, home)),
+    );
     listing(&mut out, "writes", &writes, 6, width, true);
     let reads: Vec<String> = summary
         .read_only_paths
@@ -936,7 +961,10 @@ fn policy_lines(
         if mediated {
             "Herdr, D-Bus, SSH and GPG agents blocked".to_string()
         } else {
-            format!("AF_UNIX {}: host sockets reachable", summary.af_unix_mediation)
+            format!(
+                "AF_UNIX {}: host sockets reachable",
+                summary.af_unix_mediation
+            )
         },
         if mediated {
             Style::new()
@@ -1616,7 +1644,11 @@ mod tests {
             "{}",
             lines[0]
         );
-        assert!(hints(&lines).contains("↑↓/jk  select   ⏎  details   g  jump   v  verify"), "{}", hints(&lines));
+        assert!(
+            hints(&lines).contains("↑↓/jk  select   ⏎  details   g  jump   v  verify"),
+            "{}",
+            hints(&lines)
+        );
         assert!(hints(&lines).contains("q  quit"), "{}", hints(&lines));
         assert!(lines[2].contains("✔ pruned 1 mapping"), "{}", lines[2]);
         let has = |needle: &str| assert!(text.contains(needle), "missing {needle:?} in:\n{text}");
@@ -1676,7 +1708,11 @@ mod tests {
         state.selected = 1;
         state.prompt = Some("Forget 1 mapping? [y/N]".into());
         let (lines, text) = screen(&state, 110, 32);
-        assert!(lines[2].contains("? Forget 1 mapping? [y/N]"), "{}", lines[2]);
+        assert!(
+            lines[2].contains("? Forget 1 mapping? [y/N]"),
+            "{}",
+            lines[2]
+        );
         assert!(
             hints(&lines).contains("y  confirm") && hints(&lines).contains("n/esc  cancel"),
             "{}",
@@ -1752,7 +1788,10 @@ mod tests {
         let mut rows = sample_rows();
         rows[0].trees.client[0].argv = vec!["/bin/tool".into(), "x".repeat(400)];
         let (_, long) = screen(&detail_view(rows), 120, 44);
-        assert!(long.contains("xxx…"), "a very long command is cut with …: {long}");
+        assert!(
+            long.contains("xxx…"),
+            "a very long command is cut with …: {long}"
+        );
     }
 
     #[test]
@@ -1962,7 +2001,10 @@ mod tests {
         state.selected = 8;
         let (_, text) = screen(&state, 110, 24);
         assert!(text.contains("┏ ▶ tree9"), "{text}");
-        assert!(!text.contains("tree1 "), "the first boxes scrolled away: {text}");
+        assert!(
+            !text.contains("tree1 "),
+            "the first boxes scrolled away: {text}"
+        );
         assert!(text.contains(" 9/9"), "{text}");
         state.selected = 0;
         let (_, text) = screen(&state, 110, 24);
@@ -2006,5 +2048,4 @@ mod tests {
         assert_eq!(state.selected, 0);
         assert!(state.selected_row().is_none());
     }
-
 }

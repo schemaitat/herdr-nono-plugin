@@ -626,7 +626,10 @@ mod tests {
             status(&app),
             "pane w1:p2 of s-2 is gone; nothing to jump to"
         );
-        assert_eq!(app_with(Vec::new(), None).on_key(Key::Char('g')), Effect::None);
+        assert_eq!(
+            app_with(Vec::new(), None).on_key(Key::Char('g')),
+            Effect::None
+        );
     }
 
     #[test]

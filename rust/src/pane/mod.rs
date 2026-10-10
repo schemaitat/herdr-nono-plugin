@@ -263,7 +263,10 @@ fn run_interactive(setup: Setup) -> i32 {
     let mut repaint = false;
     'event_loop: loop {
         let ctx = draw_context(&home);
-        if startup_repaints.peek().is_some_and(|at| started.elapsed() >= *at) {
+        if startup_repaints
+            .peek()
+            .is_some_and(|at| started.elapsed() >= *at)
+        {
             startup_repaints.next();
             repaint = true;
         }

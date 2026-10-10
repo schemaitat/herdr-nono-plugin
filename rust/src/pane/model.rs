@@ -213,16 +213,20 @@ pub fn health(row: &Row) -> Health {
 /// lives in a `worktrees/<repo>/<name>` layout.
 pub fn worktree_name(local_path: &str) -> (String, Option<String>) {
     let path = Path::new(local_path.trim_end_matches('/'));
-    let name = path
-        .file_name()
-        .map_or_else(|| "?".to_string(), |name| name.to_string_lossy().into_owned());
+    let name = path.file_name().map_or_else(
+        || "?".to_string(),
+        |name| name.to_string_lossy().into_owned(),
+    );
     let repo = path.parent().and_then(|repo| {
         let in_worktrees = repo
             .parent()
             .and_then(Path::file_name)
             .is_some_and(|dir| dir == "worktrees");
         in_worktrees
-            .then(|| repo.file_name().map(|repo| repo.to_string_lossy().into_owned()))
+            .then(|| {
+                repo.file_name()
+                    .map(|repo| repo.to_string_lossy().into_owned())
+            })
             .flatten()
     });
     (name, repo)
@@ -667,9 +671,18 @@ mod tests {
         };
         assert_eq!(health(&with(json!({"pane_exists": true}))), Health::Stopped);
         assert_eq!(health(&with(json!({"pane_exists": false}))), Health::Stale);
-        assert_eq!(health(&with(json!({"pane_exists": false, "running": true}))), Health::Running);
-        assert_eq!(health(&with(json!({"server_running": true}))), Health::Running);
-        assert_eq!(health(&with(json!({"pane_exists": false, "shells": 1}))), Health::Running);
+        assert_eq!(
+            health(&with(json!({"pane_exists": false, "running": true}))),
+            Health::Running
+        );
+        assert_eq!(
+            health(&with(json!({"server_running": true}))),
+            Health::Running
+        );
+        assert_eq!(
+            health(&with(json!({"pane_exists": false, "shells": 1}))),
+            Health::Running
+        );
         let mut unknown = with(json!({"pane_exists": true}));
         unknown.running = None;
         assert_eq!(health(&unknown), Health::Unknown);
@@ -681,7 +694,10 @@ mod tests {
     fn worktree_name_is_the_directory_and_the_repository_above_a_herdr_worktree() {
         assert_eq!(
             worktree_name("/home/u/.herdr/worktrees/herdr-nono-plugin/feat-tui/"),
-            ("feat-tui".to_string(), Some("herdr-nono-plugin".to_string()))
+            (
+                "feat-tui".to_string(),
+                Some("herdr-nono-plugin".to_string())
+            )
         );
         assert_eq!(
             worktree_name("/home/u/projects/app"),
