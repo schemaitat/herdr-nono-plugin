@@ -77,3 +77,7 @@ cd herdr-nono-plugin && sh scripts/install-binary.sh
 herdr plugin link "$PWD"
 sh scripts/run-action.sh doctor
 ```
+
+With [just](https://just.systems) and a Rust toolchain, `just install` builds
+the checkout, replaces any installed copy of the plugin and links the checkout
+in one step. Run it again after each change to the code.

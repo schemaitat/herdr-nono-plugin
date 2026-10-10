@@ -149,6 +149,8 @@ fn to_key(code: KeyCode, modifiers: KeyModifiers) -> Option<Key> {
         KeyCode::Enter => Some(Key::Enter),
         KeyCode::Esc => Some(Key::Escape),
         KeyCode::Char('c') if modifiers.contains(KeyModifiers::CONTROL) => Some(Key::CtrlC),
+        // Kitty-style input reports shift+/ as '/' plus SHIFT instead of '?'.
+        KeyCode::Char('/') if modifiers.contains(KeyModifiers::SHIFT) => Some(Key::Char('?')),
         KeyCode::Char(c) => Some(Key::Char(c.to_lowercase().next().unwrap_or(c))),
         _ => None,
     }
@@ -255,7 +257,7 @@ fn run_interactive(setup: Setup) -> i32 {
         }
         match event::poll(Duration::from_millis(50)) {
             Ok(true) => match event::read() {
-                Ok(Event::Key(key)) if key.kind == KeyEventKind::Press => {
+                Ok(Event::Key(key)) if key.kind != KeyEventKind::Release => {
                     if let Some(key) = to_key(key.code, key.modifiers) {
                         match app.on_key(key) {
                             Effect::Quit => break 'event_loop,
@@ -330,6 +332,22 @@ pub fn run_pane_from_process(args: &[String]) -> i32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn shifted_slash_is_a_question_mark_and_letters_are_lower_cased() {
+        assert_eq!(
+            to_key(KeyCode::Char('/'), KeyModifiers::SHIFT),
+            Some(Key::Char('?'))
+        );
+        assert_eq!(
+            to_key(KeyCode::Char('/'), KeyModifiers::NONE),
+            Some(Key::Char('/'))
+        );
+        assert_eq!(
+            to_key(KeyCode::Char('A'), KeyModifiers::SHIFT),
+            Some(Key::Char('a'))
+        );
+    }
 
     #[test]
     fn the_fallback_frame_size_comes_from_the_environment() {

@@ -133,7 +133,13 @@ impl App {
             }
             return Effect::None;
         }
-        if self.busy {
+        // Moving around stays possible while a job runs; only starting another one waits.
+        if self.busy
+            && matches!(
+                key,
+                Key::Enter | Key::Char('g' | 'r' | 'v' | 'x' | 'p' | 'a')
+            )
+        {
             return Effect::None;
         }
         let last = self.view.rows.len().saturating_sub(1);
@@ -502,8 +508,11 @@ mod tests {
         assert_eq!(
             app.on_key(Key::Char('x')),
             Effect::None,
-            "keys are ignored while a job runs"
+            "job keys are ignored while a job runs"
         );
+        app.on_key(Key::Char('?'));
+        assert!(app.view.help, "but the help and the selection still work");
+        app.on_key(Key::Escape);
         app.on_job_done(Status::new(StatusKind::Ok, "s-1: confined"));
         assert_eq!(app.on_key(Key::Char('x')), Effect::None);
         assert_eq!(
