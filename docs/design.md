@@ -1,5 +1,17 @@
 # Design
 
+## Launch and verification
+
+The action runs briefly under Herdr; the bridge stays in the agent pane for
+the lifetime of the session. The server and client run in separate nono
+sandboxes, while verification and the pane mapping stay outside both.
+
+![Launch flow: Herdr starts the action, which opens a pane and saves a mapping; the bridge starts a client and a private server in separate sandboxes, then verifies them from the host and records the outcome.](images/launch.svg)
+
+The client can reach only its private server port; the server runs tools and
+uses nono's proxy for allowed provider hosts. See [Security](security.md) for
+the network and trust boundaries.
+
 ## Two plugin processes
 
 Herdr runs plugin actions as short-lived processes without a terminal, so

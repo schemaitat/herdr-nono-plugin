@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 510" role="img" aria-labelledby="title desc">
+  <title id="title">OpenCode sandbox network boundary</title>
+  <desc id="desc">The network-blocked client connects only to its sandboxed server using a private port and password. The server runs tools and reaches allowed provider hosts through the nono proxy. The unsandboxed host service is denied.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#176b70"/></marker>
+  </defs>
+  <rect width="1080" height="510" rx="12" fill="#ffffff"/>
+  <text x="40" y="45" fill="#263238" font-family="sans-serif" font-size="21" font-weight="700">OpenCode network boundary</text>
+  <g stroke-width="2">
+    <rect x="35" y="105" width="280" height="183" rx="10" fill="#eef2ff" stroke="#455aa0"/>
+    <rect x="365" y="105" width="335" height="183" rx="10" fill="#eef2ff" stroke="#455aa0"/>
+    <rect x="752" y="105" width="290" height="95" rx="10" fill="#eaf5f3" stroke="#176b70"/>
+    <rect x="752" y="226" width="290" height="95" rx="10" fill="#eaf5f3" stroke="#176b70"/>
+    <rect x="365" y="385" width="335" height="93" rx="10" fill="#fff2f0" stroke="#ad3b35"/>
+  </g>
+  <g font-family="sans-serif" text-anchor="middle" fill="#172b35">
+    <text x="175" y="142" font-size="19" font-weight="700">Client sandbox</text>
+    <text x="175" y="178" font-size="16">OpenCode TUI</text>
+    <text x="175" y="211" font-size="15">Network blocked</text>
+    <text x="175" y="245" font-size="15">Only private port P open</text>
+    <text x="532" y="142" font-size="19" font-weight="700">Server sandbox</text>
+    <text x="532" y="178" font-size="16">opencode serve on port P</text>
+    <text x="532" y="211" font-size="15">Tools: bash, edits, MCP</text>
+    <text x="532" y="245" font-size="15">Provider hosts via nono proxy</text>
+    <text x="897" y="143" font-size="18" font-weight="700">nono proxy</text>
+    <text x="897" y="172" font-size="15">Allowed hosts only</text>
+    <text x="897" y="264" font-size="18" font-weight="700">GitHub Copilot</text>
+    <text x="897" y="291" font-size="15">and model catalog</text>
+    <text x="532" y="418" font-size="18" font-weight="700">Unsandboxed host service</text>
+    <text x="532" y="450" font-size="15">127.0.0.1:4096 — unreachable</text>
+  </g>
+  <g fill="none" stroke="#176b70" stroke-width="2.5" marker-end="url(#arrow)">
+    <path d="M 315 175 H 355"/>
+    <path d="M 700 150 H 742"/>
+    <path d="M 897 200 V 216"/>
+  </g>
+  <path d="M 532 288 V 372" fill="none" stroke="#ad3b35" stroke-width="2.5" stroke-dasharray="7 5"/>
+  <g stroke="#ad3b35" stroke-width="3"><path d="M 520 360 L 544 378 M 544 360 L 520 378"/></g>
+  <g fill="#38545c" font-family="sans-serif" font-size="13" text-anchor="middle">
+    <text x="337" y="101">P + password</text>
+    <text x="722" y="101">HTTPS</text>
+  </g>
+  <text x="610" y="351" fill="#ad3b35" font-family="sans-serif" font-size="15">Denied (including via proxy)</text>
+</svg>

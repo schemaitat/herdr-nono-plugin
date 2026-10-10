@@ -19,19 +19,7 @@ The plugin picks the port `P` and a fresh password (`OPENCODE_PASSWORD`) on
 every launch; the server rejects requests without it. `--server` is a required
 argument that configuration cannot replace.
 
-```mermaid
-flowchart LR
-    subgraph client["client sandbox: network blocked"]
-      CLIENT["opencode --server http://127.0.0.1:P<br/>(TUI)"]
-    end
-    subgraph server["server sandbox: provider hosts via nono proxy"]
-      SERVER["opencode serve --port P"] --> TOOLS["tools: bash, edits, ..."]
-    end
-    SVC["OpenCode host service<br/>127.0.0.1:4096 (unsandboxed)"]
-    CLIENT -->|"port P + password"| SERVER
-    SERVER --> PROXY["nono proxy"] --> NET(("GitHub Copilot"))
-    TOOLS -. "denied, directly and via the proxy" .-> SVC
-```
+![Security boundary: the network-blocked client reaches only its private server port; the sandboxed server runs tools and reaches allowed provider hosts through nono's proxy. Neither sandbox can reach the unsandboxed OpenCode host service.](images/security-boundary.svg)
 
 ## What each sandbox can reach
 
